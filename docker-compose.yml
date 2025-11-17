@@ -1,0 +1,47 @@
+services:
+  ros2-dev:
+    build:
+      context: .devcontainer
+      dockerfile: Dockerfile
+      args:
+        ROS_DISTRO: jazzy
+        USERNAME: ${USERNAME:-ros}
+        USER_UID: ${USER_UID:-1000}
+        USER_GID: ${USER_GID:-1000}
+    container_name: ros2-dev-${USER:-ros}
+    image: ros2-dev:jazzy
+    user: "${USER_UID:-1000}:${USER_GID:-1000}"
+
+    # Interactive terminal
+    stdin_open: true
+    tty: true
+
+    # Network and security settings
+    network_mode: host
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+
+    # Volume mounts
+    volumes:
+      - .:/workspace:cached
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Preserve bash history
+      - ros2-bash-history:/home/ros/.bash_history_volume
+
+    # Environment variables
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - ROS_DOMAIN_ID=0
+      - QT_X11_NO_MITSHM=1
+      - HISTFILE=/home/ros/.bash_history_volume/.bash_history
+
+    # Working directory
+    working_dir: /workspace
+
+    # Keep container running
+    command: /bin/bash
+
+volumes:
+  ros2-bash-history:

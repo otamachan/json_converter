@@ -1,0 +1,41 @@
+# ROS2 build artifacts
+build/
+install/
+log/
+
+# C++ artifacts
+*.o
+*.so
+*.a
+*.dylib
+*.exe
+*.out
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compile commands
+compile_commands.json
+
+# Coverage
+*.gcda
+*.gcno
+*.gcov
+coverage/
+
+# Backup files
+*.backup
+*.bak
