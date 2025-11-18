@@ -16,7 +16,7 @@ jobs:
       run: ./dev.sh build
 
     - name: Build packages
-      run: ./dev.sh run "colcon build"
+      run: ./dev.sh run "colcon build --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 
     - name: Run tests
       run: ./dev.sh run "colcon test --event-handlers console_direct+"
@@ -26,4 +26,4 @@ jobs:
       run: ./dev.sh run "colcon test-result --verbose"
 
     - name: Run clang-tidy
-      run: ./dev.sh run "cd /workspace/workspace && ament_clang_tidy src/json_converter_cpp"
+      run: ./dev.sh run "ament_clang_tidy /workspace/workspace/src/json_converter_cpp"
