@@ -128,14 +128,14 @@ bool Converter::message_to_json(
             return false;
           }
         }
-        array_json.PushBack(element_json, allocator);
+        array_json.PushBack(std::move(element_json), allocator);
       }
 
       // Use StringRef since member.name_ is part of type support data
       // with static lifetime (no need to copy)
       json.AddMember(
         rapidjson::StringRef(member.name_),
-        array_json,
+        std::move(array_json),
         allocator);
     } else {
       if (member.type_id_ == rosidl_typesupport_introspection_cpp::ROS_TYPE_MESSAGE) {
@@ -147,7 +147,7 @@ bool Converter::message_to_json(
         }
         json.AddMember(
           rapidjson::StringRef(member.name_),
-          nested_json,
+          std::move(nested_json),
           allocator);
       } else {
         rapidjson::Value field_json;
@@ -156,7 +156,7 @@ bool Converter::message_to_json(
         }
         json.AddMember(
           rapidjson::StringRef(member.name_),
-          field_json,
+          std::move(field_json),
           allocator);
       }
     }
