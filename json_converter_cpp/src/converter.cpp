@@ -309,12 +309,18 @@ const rosidl_message_type_support_t * Converter::load_type_support_cpp(
 
 Converter::TypeInfo Converter::load_type_info(const std::string & type_name)
 {
+  // Check cache first
+  auto it = type_info_cache_.find(type_name);
+  if (it != type_info_cache_.end()) {
+    return it->second;
+  }
+
   // Parse "package_name/interface_type/message_type" format
   size_t first_slash = type_name.find('/');
   size_t second_slash = type_name.find('/', first_slash + 1);
 
   if (first_slash == std::string::npos || second_slash == std::string::npos) {
-    return {nullptr, nullptr, nullptr};
+    return {nullptr, nullptr};
   }
 
   std::string package_name = type_name.substr(0, first_slash);
@@ -329,13 +335,18 @@ Converter::TypeInfo Converter::load_type_info(const std::string & type_name)
     load_introspection_type_support(package_name, type_name_with_prefix);
 
   if (type_support == nullptr || introspection_type_support == nullptr) {
-    return {nullptr, nullptr, nullptr};
+    return {nullptr, nullptr};
   }
 
   auto const * members =
     static_cast<const MessageMembers *>(introspection_type_support->data);
 
-  return {type_support, introspection_type_support, members};
+  TypeInfo type_info = {type_support, members};
+
+  // Cache the result
+  type_info_cache_[type_name] = type_info;
+
+  return type_info;
 }
 
 // SerializedMessage API

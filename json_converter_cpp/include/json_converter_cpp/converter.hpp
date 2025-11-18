@@ -15,6 +15,7 @@
 #pragma once
 
 #include <string>
+#include <unordered_map>
 
 #include <nlohmann/json.hpp>
 #include <rclcpp/serialized_message.hpp>
@@ -81,11 +82,10 @@ private:
   struct TypeInfo
   {
     const rosidl_message_type_support_t * type_support;
-    const rosidl_message_type_support_t * introspection_type_support;
     const MessageMembers * members;
   };
 
-  static TypeInfo load_type_info(const std::string & type_name);
+  TypeInfo load_type_info(const std::string & type_name);
   static const rosidl_message_type_support_t * load_introspection_type_support(
     const std::string & package_name, const std::string & type_name_with_prefix);
   static const rosidl_message_type_support_t * load_type_support_cpp(
@@ -100,6 +100,9 @@ private:
 
   static bool json_to_message(
     const nlohmann::json & json, void * message_ptr, const MessageMembers * members);
+
+  // Cache for type information
+  std::unordered_map<std::string, TypeInfo> type_info_cache_;
 };
 
 template<typename T>
