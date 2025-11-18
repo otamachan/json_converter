@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+
 #include <gtest/gtest.h>
 
 #include <geometry_msgs/msg/point.hpp>
@@ -36,19 +39,23 @@ TEST(ConverterTest, StringMessageToJson)
   std_msgs::msg::String msg;
   msg.data = "hello world";
 
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json(msg, json));
-  EXPECT_EQ(json["data"], "hello world");
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json(msg, doc, allocator));
+  EXPECT_EQ(std::string(doc["data"].GetString()), "hello world");
 }
 
 TEST(ConverterTest, JsonToStringMessage)
 {
   Converter converter;
-  nlohmann::json json;
-  json["data"] = "test message";
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  doc.AddMember("data", "test message", allocator);
 
   std_msgs::msg::String msg;
-  ASSERT_TRUE(converter.to_msg(json, msg));
+  ASSERT_TRUE(converter.to_msg(doc, msg));
   EXPECT_EQ(msg.data, "test message");
 }
 
@@ -58,22 +65,30 @@ TEST(ConverterTest, Int32ArrayToJson)
   std_msgs::msg::Int32MultiArray msg;
   msg.data = {1, 2, 3, 4, 5};
 
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json(msg, json));
-  ASSERT_TRUE(json["data"].is_array());
-  EXPECT_EQ(json["data"].size(), 5);
-  EXPECT_EQ(json["data"][0], 1);
-  EXPECT_EQ(json["data"][4], 5);
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json(msg, doc, allocator));
+  ASSERT_TRUE(doc["data"].IsArray());
+  EXPECT_EQ(doc["data"].Size(), 5);
+  EXPECT_EQ(doc["data"][0].GetInt(), 1);
+  EXPECT_EQ(doc["data"][4].GetInt(), 5);
 }
 
 TEST(ConverterTest, JsonToInt32Array)
 {
   Converter converter;
-  nlohmann::json json;
-  json["data"] = {10, 20, 30};
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  rapidjson::Value array(rapidjson::kArrayType);
+  array.PushBack(10, allocator);
+  array.PushBack(20, allocator);
+  array.PushBack(30, allocator);
+  doc.AddMember("data", array, allocator);
 
   std_msgs::msg::Int32MultiArray msg;
-  ASSERT_TRUE(converter.to_msg(json, msg));
+  ASSERT_TRUE(converter.to_msg(doc, msg));
   ASSERT_EQ(msg.data.size(), 3);
   EXPECT_EQ(msg.data[0], 10);
   EXPECT_EQ(msg.data[1], 20);
@@ -92,28 +107,38 @@ TEST(ConverterTest, NestedMessageToJson)
   msg.orientation.z = 0.0;
   msg.orientation.w = 1.0;
 
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json(msg, json));
-  EXPECT_DOUBLE_EQ(json["position"]["x"], 1.0);
-  EXPECT_DOUBLE_EQ(json["position"]["y"], 2.0);
-  EXPECT_DOUBLE_EQ(json["position"]["z"], 3.0);
-  EXPECT_DOUBLE_EQ(json["orientation"]["w"], 1.0);
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json(msg, doc, allocator));
+  EXPECT_DOUBLE_EQ(doc["position"]["x"].GetDouble(), 1.0);
+  EXPECT_DOUBLE_EQ(doc["position"]["y"].GetDouble(), 2.0);
+  EXPECT_DOUBLE_EQ(doc["position"]["z"].GetDouble(), 3.0);
+  EXPECT_DOUBLE_EQ(doc["orientation"]["w"].GetDouble(), 1.0);
 }
 
 TEST(ConverterTest, JsonToNestedMessage)
 {
   Converter converter;
-  nlohmann::json json;
-  json["position"]["x"] = 5.0;
-  json["position"]["y"] = 6.0;
-  json["position"]["z"] = 7.0;
-  json["orientation"]["x"] = 0.0;
-  json["orientation"]["y"] = 0.0;
-  json["orientation"]["z"] = 0.0;
-  json["orientation"]["w"] = 1.0;
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+
+  rapidjson::Value position(rapidjson::kObjectType);
+  position.AddMember("x", 5.0, allocator);
+  position.AddMember("y", 6.0, allocator);
+  position.AddMember("z", 7.0, allocator);
+  doc.AddMember("position", position, allocator);
+
+  rapidjson::Value orientation(rapidjson::kObjectType);
+  orientation.AddMember("x", 0.0, allocator);
+  orientation.AddMember("y", 0.0, allocator);
+  orientation.AddMember("z", 0.0, allocator);
+  orientation.AddMember("w", 1.0, allocator);
+  doc.AddMember("orientation", orientation, allocator);
 
   geometry_msgs::msg::Pose msg;
-  ASSERT_TRUE(converter.to_msg(json, msg));
+  ASSERT_TRUE(converter.to_msg(doc, msg));
   EXPECT_DOUBLE_EQ(msg.position.x, 5.0);
   EXPECT_DOUBLE_EQ(msg.position.y, 6.0);
   EXPECT_DOUBLE_EQ(msg.position.z, 7.0);
@@ -142,25 +167,42 @@ TEST(ConverterTest, ArrayOfNestedMessagesToJson)
 
   msg.points = {p1, p2, p3};
 
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json(msg, json));
-  ASSERT_TRUE(json["points"].is_array());
-  EXPECT_EQ(json["points"].size(), 3);
-  EXPECT_FLOAT_EQ(json["points"][0]["x"], 1.0);
-  EXPECT_FLOAT_EQ(json["points"][1]["x"], 3.0);
-  EXPECT_FLOAT_EQ(json["points"][2]["x"], 5.0);
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json(msg, doc, allocator));
+  ASSERT_TRUE(doc["points"].IsArray());
+  EXPECT_EQ(doc["points"].Size(), 3);
+  EXPECT_FLOAT_EQ(doc["points"][0]["x"].GetFloat(), 1.0);
+  EXPECT_FLOAT_EQ(doc["points"][1]["x"].GetFloat(), 3.0);
+  EXPECT_FLOAT_EQ(doc["points"][2]["x"].GetFloat(), 5.0);
 }
 
 TEST(ConverterTest, JsonToArrayOfNestedMessages)
 {
   Converter converter;
-  nlohmann::json json;
-  json["points"] = nlohmann::json::array();
-  json["points"].push_back({{"x", 10.0}, {"y", 20.0}, {"z", 0.0}});
-  json["points"].push_back({{"x", 30.0}, {"y", 40.0}, {"z", 0.0}});
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+
+  rapidjson::Value points(rapidjson::kArrayType);
+
+  rapidjson::Value p1(rapidjson::kObjectType);
+  p1.AddMember("x", 10.0, allocator);
+  p1.AddMember("y", 20.0, allocator);
+  p1.AddMember("z", 0.0, allocator);
+  points.PushBack(p1, allocator);
+
+  rapidjson::Value p2(rapidjson::kObjectType);
+  p2.AddMember("x", 30.0, allocator);
+  p2.AddMember("y", 40.0, allocator);
+  p2.AddMember("z", 0.0, allocator);
+  points.PushBack(p2, allocator);
+
+  doc.AddMember("points", points, allocator);
 
   geometry_msgs::msg::Polygon msg;
-  ASSERT_TRUE(converter.to_msg(json, msg));
+  ASSERT_TRUE(converter.to_msg(doc, msg));
   ASSERT_EQ(msg.points.size(), 2);
   EXPECT_FLOAT_EQ(msg.points[0].x, 10.0);
   EXPECT_FLOAT_EQ(msg.points[0].y, 20.0);
@@ -171,15 +213,17 @@ TEST(ConverterTest, JsonToArrayOfNestedMessages)
 TEST(ConverterTest, JsonWithMissingFieldsUsesDefaults)
 {
   Converter converter;
-  nlohmann::json json;
-  json["x"] = 10.0;
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  doc.AddMember("x", 10.0, allocator);
   // y and z fields are missing
 
   geometry_msgs::msg::Point msg;
   msg.y = 99.0;  // Set non-default value
   msg.z = 88.0;  // Set non-default value
 
-  ASSERT_TRUE(converter.to_msg(json, msg));
+  ASSERT_TRUE(converter.to_msg(doc, msg));
   EXPECT_DOUBLE_EQ(msg.x, 10.0);
   // Missing fields should keep their existing values
   EXPECT_DOUBLE_EQ(msg.y, 99.0);
@@ -189,15 +233,17 @@ TEST(ConverterTest, JsonWithMissingFieldsUsesDefaults)
 TEST(ConverterTest, JsonWithExtraFieldsAreIgnored)
 {
   Converter converter;
-  nlohmann::json json;
-  json["x"] = 1.0;
-  json["y"] = 2.0;
-  json["z"] = 3.0;
-  json["unknown_field"] = "should be ignored";
-  json["extra_number"] = 123;
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  doc.AddMember("x", 1.0, allocator);
+  doc.AddMember("y", 2.0, allocator);
+  doc.AddMember("z", 3.0, allocator);
+  doc.AddMember("unknown_field", "should be ignored", allocator);
+  doc.AddMember("extra_number", 123, allocator);
 
   geometry_msgs::msg::Point msg;
-  ASSERT_TRUE(converter.to_msg(json, msg));
+  ASSERT_TRUE(converter.to_msg(doc, msg));
   EXPECT_DOUBLE_EQ(msg.x, 1.0);
   EXPECT_DOUBLE_EQ(msg.y, 2.0);
   EXPECT_DOUBLE_EQ(msg.z, 3.0);
@@ -223,12 +269,14 @@ TEST(ConverterTest, ComplexRoundTrip)
   original.points = {p1, p2, p3};
 
   // Convert to JSON
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json(original, json));
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json(original, doc, allocator));
 
   // Convert back to message
   geometry_msgs::msg::Polygon result;
-  ASSERT_TRUE(converter.to_msg(json, result));
+  ASSERT_TRUE(converter.to_msg(doc, result));
 
   // Verify
   ASSERT_EQ(result.points.size(), original.points.size());
@@ -253,13 +301,15 @@ TEST(ConverterTest, SerializedMessageString)
   serializer.serialize_message(&msg, &serialized_msg);
 
   // Convert SerializedMessage to JSON
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg, json));
-  EXPECT_EQ(json["data"], "serialized message test");
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg, doc, allocator));
+  EXPECT_EQ(std::string(doc["data"].GetString()), "serialized message test");
 
   // Convert JSON back to SerializedMessage
   rclcpp::SerializedMessage result_serialized;
-  ASSERT_TRUE(converter.to_msg("std_msgs/msg/String", json, result_serialized));
+  ASSERT_TRUE(converter.to_msg("std_msgs/msg/String", doc, result_serialized));
 
   // Deserialize to verify
   std_msgs::msg::String result;
@@ -287,16 +337,18 @@ TEST(ConverterTest, SerializedMessagePose)
   serializer.serialize_message(&pose, &serialized_msg);
 
   // Convert SerializedMessage to JSON
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json("geometry_msgs/msg/Pose", serialized_msg, json));
-  EXPECT_FLOAT_EQ(json["position"]["x"], 1.5);
-  EXPECT_FLOAT_EQ(json["position"]["y"], 2.5);
-  EXPECT_FLOAT_EQ(json["position"]["z"], 3.5);
-  EXPECT_FLOAT_EQ(json["orientation"]["w"], 1.0);
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json("geometry_msgs/msg/Pose", serialized_msg, doc, allocator));
+  EXPECT_FLOAT_EQ(doc["position"]["x"].GetFloat(), 1.5);
+  EXPECT_FLOAT_EQ(doc["position"]["y"].GetFloat(), 2.5);
+  EXPECT_FLOAT_EQ(doc["position"]["z"].GetFloat(), 3.5);
+  EXPECT_FLOAT_EQ(doc["orientation"]["w"].GetFloat(), 1.0);
 
   // Convert JSON back to SerializedMessage
   rclcpp::SerializedMessage result_serialized;
-  ASSERT_TRUE(converter.to_msg("geometry_msgs/msg/Pose", json, result_serialized));
+  ASSERT_TRUE(converter.to_msg("geometry_msgs/msg/Pose", doc, result_serialized));
 
   // Deserialize to verify
   geometry_msgs::msg::Pose result;
@@ -334,26 +386,29 @@ TEST(ConverterTest, ServiceRequestBasicTypes)
   serializer.serialize_message(&request, &serialized_msg);
 
   // Convert SerializedMessage to JSON
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json("test_msgs/srv/BasicTypes::Request", serialized_msg, json));
-  EXPECT_EQ(json["bool_value"], true);
-  EXPECT_EQ(json["byte_value"], 123);
-  EXPECT_EQ(json["char_value"], 'A');
-  EXPECT_FLOAT_EQ(json["float32_value"], 1.5f);
-  EXPECT_DOUBLE_EQ(json["float64_value"], 2.5);
-  EXPECT_EQ(json["int8_value"], -8);
-  EXPECT_EQ(json["uint8_value"], 8);
-  EXPECT_EQ(json["int16_value"], -16);
-  EXPECT_EQ(json["uint16_value"], 16);
-  EXPECT_EQ(json["int32_value"], -32);
-  EXPECT_EQ(json["uint32_value"], 32);
-  EXPECT_EQ(json["int64_value"], -64);
-  EXPECT_EQ(json["uint64_value"], 64);
-  EXPECT_EQ(json["string_value"], "test string");
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json("test_msgs/srv/BasicTypes::Request", serialized_msg, doc,
+    allocator));
+  EXPECT_EQ(doc["bool_value"].GetBool(), true);
+  EXPECT_EQ(doc["byte_value"].GetInt(), 123);
+  EXPECT_EQ(doc["char_value"].GetInt(), 'A');
+  EXPECT_FLOAT_EQ(doc["float32_value"].GetFloat(), 1.5f);
+  EXPECT_DOUBLE_EQ(doc["float64_value"].GetDouble(), 2.5);
+  EXPECT_EQ(doc["int8_value"].GetInt(), -8);
+  EXPECT_EQ(doc["uint8_value"].GetInt(), 8);
+  EXPECT_EQ(doc["int16_value"].GetInt(), -16);
+  EXPECT_EQ(doc["uint16_value"].GetInt(), 16);
+  EXPECT_EQ(doc["int32_value"].GetInt(), -32);
+  EXPECT_EQ(doc["uint32_value"].GetUint(), 32);
+  EXPECT_EQ(doc["int64_value"].GetInt64(), -64);
+  EXPECT_EQ(doc["uint64_value"].GetUint64(), 64);
+  EXPECT_EQ(std::string(doc["string_value"].GetString()), "test string");
 
   // Convert JSON back to SerializedMessage
   rclcpp::SerializedMessage result_serialized;
-  ASSERT_TRUE(converter.to_msg("test_msgs/srv/BasicTypes::Request", json, result_serialized));
+  ASSERT_TRUE(converter.to_msg("test_msgs/srv/BasicTypes::Request", doc, result_serialized));
 
   // Deserialize to verify
   test_msgs::srv::BasicTypes::Request result;
@@ -393,18 +448,21 @@ TEST(ConverterTest, ServiceResponseBasicTypes)
   serializer.serialize_message(&response, &serialized_msg);
 
   // Convert SerializedMessage to JSON
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json("test_msgs/srv/BasicTypes::Response", serialized_msg, json));
-  EXPECT_EQ(json["bool_value"], false);
-  EXPECT_EQ(json["byte_value"], 255);
-  EXPECT_EQ(json["char_value"], 'Z');
-  EXPECT_FLOAT_EQ(json["float32_value"], 3.14f);
-  EXPECT_DOUBLE_EQ(json["float64_value"], 2.718);
-  EXPECT_EQ(json["string_value"], "response data");
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json("test_msgs/srv/BasicTypes::Response", serialized_msg, doc,
+    allocator));
+  EXPECT_EQ(doc["bool_value"].GetBool(), false);
+  EXPECT_EQ(doc["byte_value"].GetInt(), 255);
+  EXPECT_EQ(doc["char_value"].GetInt(), 'Z');
+  EXPECT_FLOAT_EQ(doc["float32_value"].GetFloat(), 3.14f);
+  EXPECT_DOUBLE_EQ(doc["float64_value"].GetDouble(), 2.718);
+  EXPECT_EQ(std::string(doc["string_value"].GetString()), "response data");
 
   // Convert JSON back to SerializedMessage
   rclcpp::SerializedMessage result_serialized;
-  ASSERT_TRUE(converter.to_msg("test_msgs/srv/BasicTypes::Response", json, result_serialized));
+  ASSERT_TRUE(converter.to_msg("test_msgs/srv/BasicTypes::Response", doc, result_serialized));
 
   // Deserialize to verify
   test_msgs::srv::BasicTypes::Response result;
@@ -430,14 +488,16 @@ TEST(ConverterTest, ServiceRequestEmpty)
   serializer.serialize_message(&request, &serialized_msg);
 
   // Convert SerializedMessage to JSON
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json("test_msgs/srv/Empty::Request", serialized_msg, json));
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json("test_msgs/srv/Empty::Request", serialized_msg, doc, allocator));
   // Empty message should produce empty JSON object
-  EXPECT_TRUE(json.is_object());
+  EXPECT_TRUE(doc.IsObject());
 
   // Convert JSON back to SerializedMessage
   rclcpp::SerializedMessage result_serialized;
-  ASSERT_TRUE(converter.to_msg("test_msgs/srv/Empty::Request", json, result_serialized));
+  ASSERT_TRUE(converter.to_msg("test_msgs/srv/Empty::Request", doc, result_serialized));
 
   // Deserialize to verify (should not throw)
   test_msgs::srv::Empty::Request result;
@@ -457,14 +517,16 @@ TEST(ConverterTest, ServiceResponseEmpty)
   serializer.serialize_message(&response, &serialized_msg);
 
   // Convert SerializedMessage to JSON
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json("test_msgs/srv/Empty::Response", serialized_msg, json));
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json("test_msgs/srv/Empty::Response", serialized_msg, doc, allocator));
   // Empty message should produce empty JSON object
-  EXPECT_TRUE(json.is_object());
+  EXPECT_TRUE(doc.IsObject());
 
   // Convert JSON back to SerializedMessage
   rclcpp::SerializedMessage result_serialized;
-  ASSERT_TRUE(converter.to_msg("test_msgs/srv/Empty::Response", json, result_serialized));
+  ASSERT_TRUE(converter.to_msg("test_msgs/srv/Empty::Response", doc, result_serialized));
 
   // Deserialize to verify (should not throw)
   test_msgs::srv::Empty::Response result;
@@ -482,9 +544,11 @@ TEST(ConverterTest, CacheTest)
   rclcpp::SerializedMessage serialized_msg1;
   serializer.serialize_message(&msg1, &serialized_msg1);
 
-  nlohmann::json json1;
-  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg1, json1));
-  EXPECT_EQ(json1["data"], "first call");
+  rapidjson::Document doc1;
+  doc1.SetObject();
+  auto & allocator1 = doc1.GetAllocator();
+  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg1, doc1, allocator1));
+  EXPECT_EQ(std::string(doc1["data"].GetString()), "first call");
 
   // Second call - should use cached type info (no dlopen)
   std_msgs::msg::String msg2;
@@ -492,9 +556,11 @@ TEST(ConverterTest, CacheTest)
   rclcpp::SerializedMessage serialized_msg2;
   serializer.serialize_message(&msg2, &serialized_msg2);
 
-  nlohmann::json json2;
-  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg2, json2));
-  EXPECT_EQ(json2["data"], "second call");
+  rapidjson::Document doc2;
+  doc2.SetObject();
+  auto & allocator2 = doc2.GetAllocator();
+  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg2, doc2, allocator2));
+  EXPECT_EQ(std::string(doc2["data"].GetString()), "second call");
 
   // Third call - different data, same type (cache hit)
   std_msgs::msg::String msg3;
@@ -502,9 +568,11 @@ TEST(ConverterTest, CacheTest)
   rclcpp::SerializedMessage serialized_msg3;
   serializer.serialize_message(&msg3, &serialized_msg3);
 
-  nlohmann::json json3;
-  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg3, json3));
-  EXPECT_EQ(json3["data"], "third call");
+  rapidjson::Document doc3;
+  doc3.SetObject();
+  auto & allocator3 = doc3.GetAllocator();
+  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg3, doc3, allocator3));
+  EXPECT_EQ(std::string(doc3["data"].GetString()), "third call");
 }
 
 TEST(ConverterTest, TestMsgsBasicTypes)
@@ -526,26 +594,28 @@ TEST(ConverterTest, TestMsgsBasicTypes)
   msg.int64_value = -9876543210;
   msg.uint64_value = 1234567890123;
 
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json(msg, json));
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json(msg, doc, allocator));
 
-  EXPECT_EQ(json["bool_value"], true);
-  EXPECT_EQ(json["byte_value"], 123);
-  EXPECT_EQ(json["char_value"], 'A');
-  EXPECT_FLOAT_EQ(json["float32_value"], 3.14f);
-  EXPECT_DOUBLE_EQ(json["float64_value"], 2.718);
-  EXPECT_EQ(json["int8_value"], -42);
-  EXPECT_EQ(json["uint8_value"], 200);
-  EXPECT_EQ(json["int16_value"], -1000);
-  EXPECT_EQ(json["uint16_value"], 50000);
-  EXPECT_EQ(json["int32_value"], -123456);
-  EXPECT_EQ(json["uint32_value"], 987654);
-  EXPECT_EQ(json["int64_value"], -9876543210);
-  EXPECT_EQ(json["uint64_value"], 1234567890123);
+  EXPECT_EQ(doc["bool_value"].GetBool(), true);
+  EXPECT_EQ(doc["byte_value"].GetInt(), 123);
+  EXPECT_EQ(doc["char_value"].GetInt(), 'A');
+  EXPECT_FLOAT_EQ(doc["float32_value"].GetFloat(), 3.14f);
+  EXPECT_DOUBLE_EQ(doc["float64_value"].GetDouble(), 2.718);
+  EXPECT_EQ(doc["int8_value"].GetInt(), -42);
+  EXPECT_EQ(doc["uint8_value"].GetInt(), 200);
+  EXPECT_EQ(doc["int16_value"].GetInt(), -1000);
+  EXPECT_EQ(doc["uint16_value"].GetInt(), 50000);
+  EXPECT_EQ(doc["int32_value"].GetInt(), -123456);
+  EXPECT_EQ(doc["uint32_value"].GetUint(), 987654);
+  EXPECT_EQ(doc["int64_value"].GetInt64(), -9876543210);
+  EXPECT_EQ(doc["uint64_value"].GetUint64(), 1234567890123);
 
   // Convert back
   test_msgs::msg::BasicTypes result;
-  ASSERT_TRUE(converter.to_msg(json, result));
+  ASSERT_TRUE(converter.to_msg(doc, result));
 
   EXPECT_EQ(result.bool_value, msg.bool_value);
   EXPECT_EQ(result.byte_value, msg.byte_value);
@@ -576,28 +646,30 @@ TEST(ConverterTest, TestMsgsArrays)
   msg.uint64_values = {0, 123456789, 987654321};
   msg.string_values = {"hello", "world", "test"};
 
-  nlohmann::json json;
-  ASSERT_TRUE(converter.to_json(msg, json));
+  rapidjson::Document doc;
+  doc.SetObject();
+  auto & allocator = doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json(msg, doc, allocator));
 
-  ASSERT_TRUE(json["bool_values"].is_array());
-  EXPECT_EQ(json["bool_values"].size(), 3);
-  EXPECT_EQ(json["bool_values"][0], true);
-  EXPECT_EQ(json["bool_values"][1], false);
-  EXPECT_EQ(json["bool_values"][2], true);
+  ASSERT_TRUE(doc["bool_values"].IsArray());
+  EXPECT_EQ(doc["bool_values"].Size(), 3);
+  EXPECT_EQ(doc["bool_values"][0].GetBool(), true);
+  EXPECT_EQ(doc["bool_values"][1].GetBool(), false);
+  EXPECT_EQ(doc["bool_values"][2].GetBool(), true);
 
-  ASSERT_TRUE(json["byte_values"].is_array());
-  EXPECT_EQ(json["byte_values"][0], 0);
-  EXPECT_EQ(json["byte_values"][1], 127);
-  EXPECT_EQ(json["byte_values"][2], 255);
+  ASSERT_TRUE(doc["byte_values"].IsArray());
+  EXPECT_EQ(doc["byte_values"][0].GetInt(), 0);
+  EXPECT_EQ(doc["byte_values"][1].GetInt(), 127);
+  EXPECT_EQ(doc["byte_values"][2].GetInt(), 255);
 
-  ASSERT_TRUE(json["string_values"].is_array());
-  EXPECT_EQ(json["string_values"][0], "hello");
-  EXPECT_EQ(json["string_values"][1], "world");
-  EXPECT_EQ(json["string_values"][2], "test");
+  ASSERT_TRUE(doc["string_values"].IsArray());
+  EXPECT_EQ(std::string(doc["string_values"][0].GetString()), "hello");
+  EXPECT_EQ(std::string(doc["string_values"][1].GetString()), "world");
+  EXPECT_EQ(std::string(doc["string_values"][2].GetString()), "test");
 
   // Convert back
   test_msgs::msg::Arrays result;
-  ASSERT_TRUE(converter.to_msg(json, result));
+  ASSERT_TRUE(converter.to_msg(doc, result));
 
   ASSERT_EQ(result.bool_values.size(), 3);
   EXPECT_EQ(result.bool_values[0], true);

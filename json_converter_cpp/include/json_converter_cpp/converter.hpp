@@ -14,11 +14,13 @@
 
 #pragma once
 
+#include <rapidjson/allocators.h>
+#include <rapidjson/document.h>
+
 #include <memory>
 #include <string>
 #include <unordered_map>
 
-#include <nlohmann/json.hpp>
 #include <rclcpp/serialized_message.hpp>
 #include <rosidl_typesupport_cpp/message_type_support.hpp>
 #include <rosidl_typesupport_introspection_cpp/field_types.hpp>
@@ -42,64 +44,70 @@ public:
    * @brief Convert a ROS2 message to JSON
    * @tparam T ROS2 message type
    * @param msg ROS2 message
-   * @param json Output JSON object
+   * @param json Output JSON value (will be set as object/array/primitive)
+   * @param allocator RapidJSON allocator for memory management
    * @return true if conversion succeeded, false otherwise
    */
   template<typename T>
-  bool to_json(const T & msg, nlohmann::json & json);
+  bool to_json(
+    const T & msg, rapidjson::Value & json,
+    rapidjson::Document::AllocatorType & allocator);
 
   /**
    * @brief Convert JSON to a ROS2 message
    * @tparam T ROS2 message type
-   * @param json Input JSON object
+   * @param json Input JSON value (object/array/primitive)
    * @param msg Output ROS2 message
    * @return true if conversion succeeded, false otherwise
    */
   template<typename T>
-  bool to_msg(const nlohmann::json & json, T & msg);
+  bool to_msg(const rapidjson::Value & json, T & msg);
 
   /**
    * @brief Convert a SerializedMessage to JSON using dynamic type loading
    * @param type_name Full type name (e.g., "std_msgs/msg/String")
    * @param serialized_msg Serialized ROS2 message
-   * @param json Output JSON object
+   * @param json Output JSON value (will be set as object)
+   * @param allocator RapidJSON allocator for memory management
    * @return true if conversion succeeded, false otherwise
    */
   bool to_json(
     const std::string & type_name, const rclcpp::SerializedMessage & serialized_msg,
-    nlohmann::json & json);
+    rapidjson::Value & json, rapidjson::Document::AllocatorType & allocator);
 
   /**
    * @brief Convert JSON to a SerializedMessage using dynamic type loading
    * @param type_name Full type name (e.g., "std_msgs/msg/String")
-   * @param json Input JSON object
+   * @param json Input JSON value (must be object)
    * @param serialized_msg Output serialized ROS2 message
    * @return true if conversion succeeded, false otherwise
    */
   bool to_msg(
-    const std::string & type_name, const nlohmann::json & json,
+    const std::string & type_name, const rapidjson::Value & json,
     rclcpp::SerializedMessage & serialized_msg);
 
   /**
    * @brief Convert JSON to a message object (for GenericClient)
    * @param type_name Full type name (e.g., "std_msgs/msg/String")
-   * @param json Input JSON object
+   * @param json Input JSON value (must be object)
    * @param message_ptr Shared pointer to message object (allocated and set by this function)
    * @return true if conversion succeeded, false otherwise
    */
   bool to_msg(
-    const std::string & type_name, const nlohmann::json & json,
+    const std::string & type_name, const rapidjson::Value & json,
     std::shared_ptr<void> & message_ptr);
 
   /**
    * @brief Convert a message object to JSON (for GenericClient)
    * @param type_name Full type name (e.g., "std_msgs/msg/String")
    * @param message_ptr Pointer to message object
-   * @param json Output JSON object
+   * @param json Output JSON value (will be set as object)
+   * @param allocator RapidJSON allocator for memory management
    * @return true if conversion succeeded, false otherwise
    */
   bool to_json(
-    const std::string & type_name, const void * message_ptr, nlohmann::json & json);
+    const std::string & type_name, const void * message_ptr,
+    rapidjson::Value & json, rapidjson::Document::AllocatorType & allocator);
 
 private:
   using MessageMembers = rosidl_typesupport_introspection_cpp::MessageMembers;
@@ -117,22 +125,28 @@ private:
   static const rosidl_message_type_support_t * load_type_support_cpp(
     const std::string & package_name, const std::string & type_name_with_prefix);
 
-  static bool primitive_to_json(const void * data_ptr, uint8_t type_id, nlohmann::json & json);
+  static bool primitive_to_json(
+    const void * data_ptr, uint8_t type_id, rapidjson::Value & json,
+    rapidjson::Document::AllocatorType & allocator);
 
   static bool message_to_json(
-    const void * message_ptr, const MessageMembers * members, nlohmann::json & json);
+    const void * message_ptr, const MessageMembers * members, rapidjson::Value & json,
+    rapidjson::Document::AllocatorType & allocator);
 
-  static bool json_to_primitive(const nlohmann::json & json, void * data_ptr, uint8_t type_id);
+  static bool json_to_primitive(
+    const rapidjson::Value & json, void * data_ptr, uint8_t type_id);
 
   static bool json_to_message(
-    const nlohmann::json & json, void * message_ptr, const MessageMembers * members);
+    const rapidjson::Value & json, void * message_ptr, const MessageMembers * members);
 
   // Cache for type information
   std::unordered_map<std::string, TypeInfo> type_info_cache_;
 };
 
 template<typename T>
-bool Converter::to_json(const T & msg, nlohmann::json & json)
+bool Converter::to_json(
+  const T & msg, rapidjson::Value & json,
+  rapidjson::Document::AllocatorType & allocator)
 {
   const rosidl_message_type_support_t * type_support =
     rosidl_typesupport_cpp::get_message_type_support_handle<T>();
@@ -150,11 +164,11 @@ bool Converter::to_json(const T & msg, nlohmann::json & json)
 
   const auto * members = static_cast<const MessageMembers *>(introspection_ts->data);
 
-  return message_to_json(&msg, members, json);
+  return message_to_json(&msg, members, json, allocator);
 }
 
 template<typename T>
-bool Converter::to_msg(const nlohmann::json & json, T & msg)
+bool Converter::to_msg(const rapidjson::Value & json, T & msg)
 {
   const rosidl_message_type_support_t * type_support =
     rosidl_typesupport_cpp::get_message_type_support_handle<T>();

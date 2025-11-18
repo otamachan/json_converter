@@ -20,6 +20,7 @@
 #include <cstring>
 #include <sstream>
 #include <utility>
+#include <vector>
 
 #include <rclcpp/serialization.hpp>
 #include <rosidl_runtime_cpp/message_initialization.hpp>
@@ -35,46 +36,51 @@ using GetMessageTypeSupportFunc = const rosidl_message_type_support_t * (*)();
 }  // namespace
 
 // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
-bool Converter::primitive_to_json(const void * data_ptr, uint8_t type_id, nlohmann::json & json)
+bool Converter::primitive_to_json(
+  const void * data_ptr, uint8_t type_id, rapidjson::Value & json,
+  rapidjson::Document::AllocatorType & allocator)
 {
   switch (type_id) {
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_BOOL:
-      json = *reinterpret_cast<const bool *>(data_ptr);
+      json.SetBool(*reinterpret_cast<const bool *>(data_ptr));
       break;
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_OCTET:  // Also ROS_TYPE_BYTE
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT8:
-      json = *reinterpret_cast<const uint8_t *>(data_ptr);
+      json.SetUint(*reinterpret_cast<const uint8_t *>(data_ptr));
       break;
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_CHAR:
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT8:
-      json = *reinterpret_cast<const int8_t *>(data_ptr);
+      json.SetInt(*reinterpret_cast<const int8_t *>(data_ptr));
       break;
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT16:
-      json = *reinterpret_cast<const uint16_t *>(data_ptr);
+      json.SetUint(*reinterpret_cast<const uint16_t *>(data_ptr));
       break;
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT16:
-      json = *reinterpret_cast<const int16_t *>(data_ptr);
+      json.SetInt(*reinterpret_cast<const int16_t *>(data_ptr));
       break;
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT32:
-      json = *reinterpret_cast<const uint32_t *>(data_ptr);
+      json.SetUint(*reinterpret_cast<const uint32_t *>(data_ptr));
       break;
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT32:
-      json = *reinterpret_cast<const int32_t *>(data_ptr);
+      json.SetInt(*reinterpret_cast<const int32_t *>(data_ptr));
       break;
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT64:
-      json = *reinterpret_cast<const uint64_t *>(data_ptr);
+      json.SetUint64(*reinterpret_cast<const uint64_t *>(data_ptr));
       break;
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT64:
-      json = *reinterpret_cast<const int64_t *>(data_ptr);
+      json.SetInt64(*reinterpret_cast<const int64_t *>(data_ptr));
       break;
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_FLOAT:
-      json = *reinterpret_cast<const float *>(data_ptr);
+      json.SetFloat(*reinterpret_cast<const float *>(data_ptr));
       break;
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_DOUBLE:
-      json = *reinterpret_cast<const double *>(data_ptr);
+      json.SetDouble(*reinterpret_cast<const double *>(data_ptr));
       break;
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_STRING:
-      json = *reinterpret_cast<const std::string *>(data_ptr);
+      {
+        const auto * str = reinterpret_cast<const std::string *>(data_ptr);
+        json.SetString(str->c_str(), str->length(), allocator);
+      }
       break;
     default:
       return false;
@@ -84,18 +90,21 @@ bool Converter::primitive_to_json(const void * data_ptr, uint8_t type_id, nlohma
 // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
 bool Converter::message_to_json(
-  const void * message_ptr, const MessageMembers * members, nlohmann::json & json)
+  const void * message_ptr, const MessageMembers * members, rapidjson::Value & json,
+  rapidjson::Document::AllocatorType & allocator)
 {
   if (message_ptr == nullptr || members == nullptr) {
     return false;
   }
+
+  json.SetObject();
 
   for (size_t i = 0; i < members->member_count_; ++i) {
     const MessageMember & member = members->members_[i];
     const uint8_t * member_ptr = static_cast<const uint8_t *>(message_ptr) + member.offset_;
 
     if (member.is_array_) {
-      nlohmann::json array_json = nlohmann::json::array();
+      rapidjson::Value array_json(rapidjson::kArrayType);
       size_t array_size = 0;
 
       if (member.array_size_ > 0 && !member.is_upper_bound_) {
@@ -106,38 +115,49 @@ bool Converter::message_to_json(
 
       for (size_t j = 0; j < array_size; ++j) {
         const void * element_ptr = member.get_const_function(member_ptr, j);
-        nlohmann::json element_json;
+        rapidjson::Value element_json;
 
         if (member.type_id_ == rosidl_typesupport_introspection_cpp::ROS_TYPE_MESSAGE) {
           auto const * nested_members =
             static_cast<const MessageMembers *>(member.members_->data);
-          if (!message_to_json(element_ptr, nested_members, element_json)) {
+          if (!message_to_json(element_ptr, nested_members, element_json, allocator)) {
             return false;
           }
         } else {
-          if (!primitive_to_json(element_ptr, member.type_id_, element_json)) {
+          if (!primitive_to_json(element_ptr, member.type_id_, element_json, allocator)) {
             return false;
           }
         }
-        array_json.push_back(std::move(element_json));
+        array_json.PushBack(std::move(element_json), allocator);
       }
 
-      json[member.name_] = std::move(array_json);
+      // Use StringRef since member.name_ is part of type support data
+      // with static lifetime (no need to copy)
+      json.AddMember(
+        rapidjson::StringRef(member.name_),
+        std::move(array_json),
+        allocator);
     } else {
       if (member.type_id_ == rosidl_typesupport_introspection_cpp::ROS_TYPE_MESSAGE) {
-        nlohmann::json nested_json;
+        rapidjson::Value nested_json;
         auto const * nested_members =
           static_cast<const MessageMembers *>(member.members_->data);
-        if (!message_to_json(member_ptr, nested_members, nested_json)) {
+        if (!message_to_json(member_ptr, nested_members, nested_json, allocator)) {
           return false;
         }
-        json[member.name_] = std::move(nested_json);
+        json.AddMember(
+          rapidjson::StringRef(member.name_),
+          std::move(nested_json),
+          allocator);
       } else {
-        nlohmann::json field_json;
-        if (!primitive_to_json(member_ptr, member.type_id_, field_json)) {
+        rapidjson::Value field_json;
+        if (!primitive_to_json(member_ptr, member.type_id_, field_json, allocator)) {
           return false;
         }
-        json[member.name_] = std::move(field_json);
+        json.AddMember(
+          rapidjson::StringRef(member.name_),
+          std::move(field_json),
+          allocator);
       }
     }
   }
@@ -146,60 +166,93 @@ bool Converter::message_to_json(
 }
 
 // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
-bool Converter::json_to_primitive(const nlohmann::json & json, void * data_ptr, uint8_t type_id)
+bool Converter::json_to_primitive(
+  const rapidjson::Value & json, void * data_ptr, uint8_t type_id)
 {
-  try {
-    switch (type_id) {
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_BOOL:
-        *reinterpret_cast<bool *>(data_ptr) = json.get<bool>();
-        break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_OCTET:  // Also ROS_TYPE_BYTE
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT8:
-        *reinterpret_cast<uint8_t *>(data_ptr) = json.get<uint8_t>();
-        break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_CHAR:
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT8:
-        *reinterpret_cast<int8_t *>(data_ptr) = json.get<int8_t>();
-        break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT16:
-        *reinterpret_cast<uint16_t *>(data_ptr) = json.get<uint16_t>();
-        break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT16:
-        *reinterpret_cast<int16_t *>(data_ptr) = json.get<int16_t>();
-        break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT32:
-        *reinterpret_cast<uint32_t *>(data_ptr) = json.get<uint32_t>();
-        break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT32:
-        *reinterpret_cast<int32_t *>(data_ptr) = json.get<int32_t>();
-        break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT64:
-        *reinterpret_cast<uint64_t *>(data_ptr) = json.get<uint64_t>();
-        break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT64:
-        *reinterpret_cast<int64_t *>(data_ptr) = json.get<int64_t>();
-        break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_FLOAT:
-        *reinterpret_cast<float *>(data_ptr) = json.get<float>();
-        break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_DOUBLE:
-        *reinterpret_cast<double *>(data_ptr) = json.get<double>();
-        break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_STRING:
-        *reinterpret_cast<std::string *>(data_ptr) = json.get<std::string>();
-        break;
-      default:
+  switch (type_id) {
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_BOOL:
+      if (!json.IsBool()) {
         return false;
-    }
-  } catch (const nlohmann::json::exception &) {
-    return false;
+      }
+      *reinterpret_cast<bool *>(data_ptr) = json.GetBool();
+      break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_OCTET:  // Also ROS_TYPE_BYTE
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT8:
+      if (!json.IsUint()) {
+        return false;
+      }
+      *reinterpret_cast<uint8_t *>(data_ptr) = static_cast<uint8_t>(json.GetUint());
+      break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_CHAR:
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT8:
+      if (!json.IsInt()) {
+        return false;
+      }
+      *reinterpret_cast<int8_t *>(data_ptr) = static_cast<int8_t>(json.GetInt());
+      break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT16:
+      if (!json.IsUint()) {
+        return false;
+      }
+      *reinterpret_cast<uint16_t *>(data_ptr) = static_cast<uint16_t>(json.GetUint());
+      break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT16:
+      if (!json.IsInt()) {
+        return false;
+      }
+      *reinterpret_cast<int16_t *>(data_ptr) = static_cast<int16_t>(json.GetInt());
+      break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT32:
+      if (!json.IsUint()) {
+        return false;
+      }
+      *reinterpret_cast<uint32_t *>(data_ptr) = json.GetUint();
+      break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT32:
+      if (!json.IsInt()) {
+        return false;
+      }
+      *reinterpret_cast<int32_t *>(data_ptr) = json.GetInt();
+      break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT64:
+      if (!json.IsUint64()) {
+        return false;
+      }
+      *reinterpret_cast<uint64_t *>(data_ptr) = json.GetUint64();
+      break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT64:
+      if (!json.IsInt64()) {
+        return false;
+      }
+      *reinterpret_cast<int64_t *>(data_ptr) = json.GetInt64();
+      break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_FLOAT:
+      if (!json.IsNumber()) {
+        return false;
+      }
+      *reinterpret_cast<float *>(data_ptr) = json.GetFloat();
+      break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_DOUBLE:
+      if (!json.IsNumber()) {
+        return false;
+      }
+      *reinterpret_cast<double *>(data_ptr) = json.GetDouble();
+      break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_STRING:
+      if (!json.IsString()) {
+        return false;
+      }
+      *reinterpret_cast<std::string *>(data_ptr) = json.GetString();
+      break;
+    default:
+      return false;
   }
   return true;
 }
 // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
 bool Converter::json_to_message(
-  const nlohmann::json & json, void * message_ptr, const MessageMembers * members)
+  const rapidjson::Value & json, void * message_ptr, const MessageMembers * members)
 {
   if (message_ptr == nullptr || members == nullptr) {
     return false;
@@ -209,18 +262,18 @@ bool Converter::json_to_message(
     const MessageMember & member = members->members_[i];
     uint8_t * member_ptr = static_cast<uint8_t *>(message_ptr) + member.offset_;
 
-    if (!json.contains(member.name_)) {
+    if (!json.HasMember(member.name_)) {
       continue;
     }
 
     const auto & json_value = json[member.name_];
 
     if (member.is_array_) {
-      if (!json_value.is_array()) {
+      if (!json_value.IsArray()) {
         return false;
       }
 
-      size_t array_size = json_value.size();
+      size_t array_size = json_value.Size();
 
       if (member.array_size_ > 0 && !member.is_upper_bound_) {
         if (array_size != member.array_size_) {
@@ -372,7 +425,8 @@ Converter::TypeInfo Converter::load_type_info(const std::string & type_name)
 bool Converter::to_json(
   const std::string & type_name,
   const rclcpp::SerializedMessage & serialized_msg,
-  nlohmann::json & json)
+  rapidjson::Value & json,
+  rapidjson::Document::AllocatorType & allocator)
 {
   TypeInfo type_info = load_type_info(type_name);
   if (type_info.type_support == nullptr || type_info.members == nullptr) {
@@ -393,7 +447,7 @@ bool Converter::to_json(
   serializer.deserialize_message(&serialized_msg, object_data.data());
 
   // Convert to JSON
-  bool result = message_to_json(object_data.data(), type_info.members, json);
+  bool result = message_to_json(object_data.data(), type_info.members, json, allocator);
 
   // Cleanup
   if (type_info.members->fini_function != nullptr) {
@@ -405,7 +459,7 @@ bool Converter::to_json(
 
 bool Converter::to_msg(
   const std::string & type_name,
-  const nlohmann::json & json,
+  const rapidjson::Value & json,
   rclcpp::SerializedMessage & serialized_msg)
 {
   TypeInfo type_info = load_type_info(type_name);
@@ -446,7 +500,7 @@ bool Converter::to_msg(
 }
 
 bool Converter::to_msg(
-  const std::string & type_name, const nlohmann::json & json,
+  const std::string & type_name, const rapidjson::Value & json,
   std::shared_ptr<void> & message_ptr)
 {
   TypeInfo type_info = load_type_info(type_name);
@@ -487,14 +541,15 @@ bool Converter::to_msg(
 }
 
 bool Converter::to_json(
-  const std::string & type_name, const void * message_ptr, nlohmann::json & json)
+  const std::string & type_name, const void * message_ptr,
+  rapidjson::Value & json, rapidjson::Document::AllocatorType & allocator)
 {
   TypeInfo type_info = load_type_info(type_name);
   if (type_info.members == nullptr) {
     return false;
   }
 
-  return message_to_json(message_ptr, type_info.members, json);
+  return message_to_json(message_ptr, type_info.members, json, allocator);
 }
 
 }  // namespace json_converter_cpp
