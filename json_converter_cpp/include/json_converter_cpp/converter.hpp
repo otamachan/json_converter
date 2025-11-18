@@ -64,6 +64,29 @@ public:
   bool to_msg(const rapidjson::Value & json, T & msg);
 
   /**
+   * @brief Convert a message object to JSON (for GenericClient)
+   * @param type_name Full type name (e.g., "std_msgs/msg/String")
+   * @param message_ptr Pointer to message object
+   * @param json Output JSON value (will be set as object)
+   * @param allocator RapidJSON allocator for memory management
+   * @return true if conversion succeeded, false otherwise
+   */
+  bool to_json(
+    const std::string & type_name, const void * message_ptr,
+    rapidjson::Value & json, rapidjson::Document::AllocatorType & allocator);
+
+  /**
+   * @brief Convert JSON to a message object (for GenericClient)
+   * @param type_name Full type name (e.g., "std_msgs/msg/String")
+   * @param json Input JSON value (must be object)
+   * @param message_ptr Shared pointer to message object (allocated and set by this function)
+   * @return true if conversion succeeded, false otherwise
+   */
+  bool to_msg(
+    const std::string & type_name, const rapidjson::Value & json,
+    std::shared_ptr<void> & message_ptr);
+
+  /**
    * @brief Convert a SerializedMessage to JSON using dynamic type loading
    * @param type_name Full type name (e.g., "std_msgs/msg/String")
    * @param serialized_msg Serialized ROS2 message
@@ -85,29 +108,6 @@ public:
   bool to_msg(
     const std::string & type_name, const rapidjson::Value & json,
     rclcpp::SerializedMessage & serialized_msg);
-
-  /**
-   * @brief Convert JSON to a message object (for GenericClient)
-   * @param type_name Full type name (e.g., "std_msgs/msg/String")
-   * @param json Input JSON value (must be object)
-   * @param message_ptr Shared pointer to message object (allocated and set by this function)
-   * @return true if conversion succeeded, false otherwise
-   */
-  bool to_msg(
-    const std::string & type_name, const rapidjson::Value & json,
-    std::shared_ptr<void> & message_ptr);
-
-  /**
-   * @brief Convert a message object to JSON (for GenericClient)
-   * @param type_name Full type name (e.g., "std_msgs/msg/String")
-   * @param message_ptr Pointer to message object
-   * @param json Output JSON value (will be set as object)
-   * @param allocator RapidJSON allocator for memory management
-   * @return true if conversion succeeded, false otherwise
-   */
-  bool to_json(
-    const std::string & type_name, const void * message_ptr,
-    rapidjson::Value & json, rapidjson::Document::AllocatorType & allocator);
 
 private:
   using MessageMembers = rosidl_typesupport_introspection_cpp::MessageMembers;
