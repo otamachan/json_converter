@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Build Docker image
+      run: ./dev.sh build
+
+    - name: Build packages
+      run: ./dev.sh run "colcon build --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+
+    - name: Create symlink for clang-tidy
+      run: ./dev.sh run "ln -sf /workspace/workspace/build/json_converter_cpp/compile_commands.json /workspace/workspace/src/json_converter_cpp/"
+
+    - name: Run tests
+      run: ./dev.sh run "colcon test --event-handlers console_direct+"
+
+    - name: Show test results
+      if: always()
+      run: ./dev.sh run "colcon test-result --verbose"
+
+    - name: Run clang-tidy
+      run: ./dev.sh run "cd /workspace/workspace && ament_clang_tidy src/json_converter_cpp"
