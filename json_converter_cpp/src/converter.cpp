@@ -18,6 +18,7 @@
 
 #include <cstring>
 #include <sstream>
+#include <utility>
 
 #include <rclcpp/serialization.hpp>
 #include <rosidl_runtime_cpp/message_initialization.hpp>
@@ -117,10 +118,10 @@ bool Converter::message_to_json(
             return false;
           }
         }
-        array_json.push_back(element_json);
+        array_json.push_back(std::move(element_json));
       }
 
-      json[member.name_] = array_json;
+      json[member.name_] = std::move(array_json);
     } else {
       if (member.type_id_ == rosidl_typesupport_introspection_cpp::ROS_TYPE_MESSAGE) {
         nlohmann::json nested_json;
@@ -129,13 +130,13 @@ bool Converter::message_to_json(
         if (!message_to_json(member_ptr, nested_members, nested_json)) {
           return false;
         }
-        json[member.name_] = nested_json;
+        json[member.name_] = std::move(nested_json);
       } else {
         nlohmann::json field_json;
         if (!primitive_to_json(member_ptr, member.type_id_, field_json)) {
           return false;
         }
-        json[member.name_] = field_json;
+        json[member.name_] = std::move(field_json);
       }
     }
   }
