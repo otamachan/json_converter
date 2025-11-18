@@ -40,7 +40,7 @@ bool Converter::primitive_to_json(const void * data_ptr, uint8_t type_id, nlohma
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_BOOL:
       json = *reinterpret_cast<const bool *>(data_ptr);
       break;
-    case rosidl_typesupport_introspection_cpp::ROS_TYPE_OCTET:  // Also covers ROS_TYPE_BYTE (same value)
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_OCTET:  // Also ROS_TYPE_BYTE
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT8:
       json = *reinterpret_cast<const uint8_t *>(data_ptr);
       break;
@@ -152,7 +152,7 @@ bool Converter::json_to_primitive(const nlohmann::json & json, void * data_ptr, 
       case rosidl_typesupport_introspection_cpp::ROS_TYPE_BOOL:
         *reinterpret_cast<bool *>(data_ptr) = json.get<bool>();
         break;
-      case rosidl_typesupport_introspection_cpp::ROS_TYPE_OCTET:  // Also covers ROS_TYPE_BYTE (same value)
+      case rosidl_typesupport_introspection_cpp::ROS_TYPE_OCTET:  // Also ROS_TYPE_BYTE
       case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT8:
         *reinterpret_cast<uint8_t *>(data_ptr) = json.get<uint8_t>();
         break;

@@ -69,6 +69,34 @@ if (converter.to_msg("test_msgs/srv/BasicTypes::Response", json, serialized_resp
 }
 ```
 
+## Example CLI tool
+
+The package includes a command-line tool for echoing and publishing topics with JSON.
+
+### Echo topics as JSON
+
+```bash
+# Auto-detect topic type
+ros2 run json_converter_cpp topic echo /cmd_vel
+
+# Or specify type explicitly
+ros2 run json_converter_cpp topic echo /cmd_vel geometry_msgs/msg/Twist
+```
+
+This will output each message as a single-line JSON:
+```json
+{"linear":{"x":0.0,"y":0.0,"z":0.0},"angular":{"x":0.0,"y":0.0,"z":0.0}}
+```
+
+### Publish JSON to topics
+
+```bash
+ros2 run json_converter_cpp topic pub /cmd_vel geometry_msgs/msg/Twist \
+  '{"linear":{"x":1.0,"y":0.0,"z":0.0},"angular":{"x":0.0,"y":0.0,"z":0.0}}'
+```
+
+This will wait for at least one subscriber, publish the message once, and exit.
+
 ## How to build and test
 
 ```bash

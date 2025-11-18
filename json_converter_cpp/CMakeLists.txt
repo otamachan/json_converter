@@ -45,6 +45,15 @@ install(DIRECTORY include/
   DESTINATION include
 )
 
+# Example executables
+add_executable(topic example/topic.cpp)
+target_link_libraries(topic ${PROJECT_NAME})
+ament_target_dependencies(topic rclcpp)
+
+install(TARGETS topic
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # Export dependencies
 ament_export_targets(export_${PROJECT_NAME} HAS_LIBRARY_TARGET)
 ament_export_dependencies(
