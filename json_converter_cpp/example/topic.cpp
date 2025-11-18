@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
+
 #include <chrono>
 #include <iostream>
 #include <memory>
@@ -31,9 +35,14 @@ public:
   {
     auto callback = [this, type_name](
       std::shared_ptr<rclcpp::SerializedMessage> msg) {  // NOLINT
-        nlohmann::json json;
-        if (converter_.to_json(type_name, *msg, json)) {
-          std::cout << json.dump() << '\n';
+        rapidjson::Document doc;
+        doc.SetObject();
+        auto & allocator = doc.GetAllocator();
+        if (converter_.to_json(type_name, *msg, doc, allocator)) {
+          rapidjson::StringBuffer buffer;
+          rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+          doc.Accept(writer);
+          std::cout << buffer.GetString() << '\n';
         } else {
           std::cerr << "Failed to convert message to JSON\n";
         }
@@ -76,10 +85,10 @@ public:
     publisher_ = this->create_generic_publisher(topic_name, type_name, rclcpp::QoS(10));
 
     // Parse JSON
-    try {
-      json_ = nlohmann::json::parse(json_str);
-    } catch (const nlohmann::json::exception & e) {
-      RCLCPP_ERROR(this->get_logger(), "Failed to parse JSON: %s", e.what());
+    if (doc_.Parse(json_str.c_str()).HasParseError()) {
+      RCLCPP_ERROR(
+        this->get_logger(), "Failed to parse JSON at offset %zu",
+        doc_.GetErrorOffset());
       rclcpp::shutdown();
       return;
     }
@@ -98,7 +107,7 @@ private:
   void publish_and_exit()
   {
     rclcpp::SerializedMessage serialized_msg;
-    if (converter_.to_msg(type_name_, json_, serialized_msg)) {
+    if (converter_.to_msg(type_name_, doc_, serialized_msg)) {
       publisher_->publish(serialized_msg);
       RCLCPP_INFO(this->get_logger(), "Published message");
     } else {
@@ -111,7 +120,7 @@ private:
   rclcpp::GenericPublisher::SharedPtr publisher_;
   rclcpp::TimerBase::SharedPtr timer_;
   std::string type_name_;
-  nlohmann::json json_;
+  rapidjson::Document doc_;
 };
 
 void print_usage()

@@ -9,7 +9,7 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rosidl_typesupport_introspection_cpp REQUIRED)
-find_package(nlohmann_json REQUIRED)
+find_package(RapidJSON REQUIRED)
 
 # Create library
 add_library(${PROJECT_NAME} SHARED
@@ -22,13 +22,16 @@ target_include_directories(${PROJECT_NAME}
     $<INSTALL_INTERFACE:include>
 )
 
+target_include_directories(${PROJECT_NAME} SYSTEM PUBLIC
+  ${RAPIDJSON_INCLUDE_DIRS}
+)
+
 ament_target_dependencies(${PROJECT_NAME}
   rclcpp
   rosidl_typesupport_introspection_cpp
 )
 
 target_link_libraries(${PROJECT_NAME}
-  nlohmann_json::nlohmann_json
   ${CMAKE_DL_LIBS}
 )
 

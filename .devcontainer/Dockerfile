@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-example-interfaces \
     ros-${ROS_DISTRO}-examples-rclcpp-minimal-service \
     # Libraries
-    nlohmann-json3-dev \
+    rapidjson-dev \
     # Debugging tools
     gdb \
     valgrind \

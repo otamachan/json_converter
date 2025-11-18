@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <rapidjson/document.h>
+#include <rapidjson/stringbuffer.h>
+#include <rapidjson/writer.h>
+
 #include <chrono>
 #include <iostream>
 #include <memory>
@@ -28,11 +32,11 @@ public:
   ServiceCall(
     std::string service_name,
     std::string service_type,
-    nlohmann::json request_json)
+    rapidjson::Document && request_doc)
   : Node("service_call"),
     service_name_(std::move(service_name)),
     service_type_(std::move(service_type)),
-    request_json_(std::move(request_json))
+    request_doc_(std::move(request_doc))
   {
   }
 
@@ -41,7 +45,7 @@ public:
     // Convert JSON to request message object
     std::shared_ptr<void> request_msg;
     std::string request_type = service_type_ + "::Request";
-    if (!converter_.to_msg(request_type, request_json_, request_msg)) {
+    if (!converter_.to_msg(request_type, request_doc_, request_msg)) {
       std::cerr << "Failed to convert JSON to request message\n";
       return false;
     }
@@ -68,14 +72,19 @@ public:
 
     // Convert response to JSON
     auto response_ptr = future.get();
-    nlohmann::json response_json;
+    rapidjson::Document response_doc;
+    response_doc.SetObject();
+    auto & allocator = response_doc.GetAllocator();
     std::string response_type = service_type_ + "::Response";
-    if (!converter_.to_json(response_type, response_ptr.get(), response_json)) {
+    if (!converter_.to_json(response_type, response_ptr.get(), response_doc, allocator)) {
       std::cerr << "Failed to convert response to JSON\n";
       return false;
     }
 
-    std::cout << response_json.dump() << '\n';
+    rapidjson::StringBuffer buffer;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    response_doc.Accept(writer);
+    std::cout << buffer.GetString() << '\n';
     return true;
   }
 
@@ -83,7 +92,7 @@ private:
   json_converter_cpp::Converter converter_;
   std::string service_name_;
   std::string service_type_;
-  nlohmann::json request_json_;
+  rapidjson::Document request_doc_;
 };
 
 void print_usage()
@@ -118,15 +127,14 @@ int main(int argc, char ** argv)
     std::string service_type = argv[3];
     std::string json_string = argv[4];
 
-    nlohmann::json request_json;
-    try {
-      request_json = nlohmann::json::parse(json_string);
-    } catch (const nlohmann::json::exception & e) {
-      std::cerr << "Error parsing JSON: " << e.what() << '\n';
+    rapidjson::Document request_doc;
+    if (request_doc.Parse(json_string.c_str()).HasParseError()) {
+      std::cerr << "Error parsing JSON at offset " << request_doc.GetErrorOffset() << '\n';
       return 1;
     }
 
-    auto node = std::make_shared<ServiceCall>(service_name, service_type, request_json);
+    auto node = std::make_shared<ServiceCall>(
+      service_name, service_type, std::move(request_doc));
     bool success = node->call_service();
 
     rclcpp::shutdown();
