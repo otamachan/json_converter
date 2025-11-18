@@ -52,6 +52,23 @@ if (converter.to_msg("std_msgs/msg/String", input, output)) {
 }
 ```
 
+### Using service types
+
+```cpp
+// Service Request
+nlohmann::json json;
+rclcpp::SerializedMessage serialized_request;
+if (converter.to_json("test_msgs/srv/BasicTypes::Request", serialized_request, json)) {
+  std::cout << json.dump() << std::endl;
+}
+
+// Service Response
+rclcpp::SerializedMessage serialized_response;
+if (converter.to_msg("test_msgs/srv/BasicTypes::Response", json, serialized_response)) {
+  // ... use serialized response
+}
+```
+
 ## How to build and test
 
 ```bash
