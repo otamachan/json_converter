@@ -60,12 +60,14 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   find_package(std_msgs REQUIRED)
   find_package(geometry_msgs REQUIRED)
+  find_package(test_msgs REQUIRED)
 
   ament_add_gtest(test_converter test/test_converter.cpp)
   target_link_libraries(test_converter ${PROJECT_NAME})
   ament_target_dependencies(test_converter
     std_msgs
     geometry_msgs
+    test_msgs
   )
 endif()
 

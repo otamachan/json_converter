@@ -39,9 +39,11 @@ bool Converter::primitive_to_json(const void * data_ptr, uint8_t type_id, nlohma
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_BOOL:
       json = *reinterpret_cast<const bool *>(data_ptr);
       break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_OCTET:  // Also covers ROS_TYPE_BYTE (same value)
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT8:
       json = *reinterpret_cast<const uint8_t *>(data_ptr);
       break;
+    case rosidl_typesupport_introspection_cpp::ROS_TYPE_CHAR:
     case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT8:
       json = *reinterpret_cast<const int8_t *>(data_ptr);
       break;
@@ -149,9 +151,11 @@ bool Converter::json_to_primitive(const nlohmann::json & json, void * data_ptr, 
       case rosidl_typesupport_introspection_cpp::ROS_TYPE_BOOL:
         *reinterpret_cast<bool *>(data_ptr) = json.get<bool>();
         break;
+      case rosidl_typesupport_introspection_cpp::ROS_TYPE_OCTET:  // Also covers ROS_TYPE_BYTE (same value)
       case rosidl_typesupport_introspection_cpp::ROS_TYPE_UINT8:
         *reinterpret_cast<uint8_t *>(data_ptr) = json.get<uint8_t>();
         break;
+      case rosidl_typesupport_introspection_cpp::ROS_TYPE_CHAR:
       case rosidl_typesupport_introspection_cpp::ROS_TYPE_INT8:
         *reinterpret_cast<int8_t *>(data_ptr) = json.get<int8_t>();
         break;
@@ -315,7 +319,8 @@ Converter::TypeInfo Converter::load_type_info(const std::string & type_name)
     return it->second;
   }
 
-  // Parse "package_name/interface_type/message_type" format
+  // Parse "package_name/interface_type/message_type" or
+  // "package_name/interface_type/ServiceType::Request" format
   size_t first_slash = type_name.find('/');
   size_t second_slash = type_name.find('/', first_slash + 1);
 
@@ -324,8 +329,16 @@ Converter::TypeInfo Converter::load_type_info(const std::string & type_name)
   }
 
   std::string package_name = type_name.substr(0, first_slash);
-  std::string interface_type = type_name.substr(first_slash + 1, second_slash - first_slash - 1);
+  std::string interface_type =
+    type_name.substr(first_slash + 1, second_slash - first_slash - 1);
   std::string message_type = type_name.substr(second_slash + 1);
+
+  // Replace :: with _ for service Request/Response types
+  size_t double_colon = message_type.find("::");
+  if (double_colon != std::string::npos) {
+    message_type = message_type.substr(0, double_colon) + "_" +
+      message_type.substr(double_colon + 2);
+  }
 
   std::string type_name_with_prefix = "__" + interface_type + "__" + message_type;
 
@@ -340,6 +353,10 @@ Converter::TypeInfo Converter::load_type_info(const std::string & type_name)
 
   auto const * members =
     static_cast<const MessageMembers *>(introspection_type_support->data);
+
+  if (members == nullptr) {
+    return {nullptr, nullptr};
+  }
 
   TypeInfo type_info = {type_support, members};
 

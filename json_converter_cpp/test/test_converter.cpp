@@ -21,6 +21,10 @@
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/int32_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <test_msgs/msg/arrays.hpp>
+#include <test_msgs/msg/basic_types.hpp>
+#include <test_msgs/srv/basic_types.hpp>
+#include <test_msgs/srv/empty.hpp>
 
 #include "json_converter_cpp/converter.hpp"
 
@@ -301,6 +305,307 @@ TEST(ConverterTest, SerializedMessagePose)
   EXPECT_FLOAT_EQ(result.position.y, pose.position.y);
   EXPECT_FLOAT_EQ(result.position.z, pose.position.z);
   EXPECT_FLOAT_EQ(result.orientation.w, pose.orientation.w);
+}
+
+TEST(ConverterTest, ServiceRequestBasicTypes)
+{
+  Converter converter;
+
+  // Create service request
+  test_msgs::srv::BasicTypes::Request request;
+  request.bool_value = true;
+  request.byte_value = 123;
+  request.char_value = 'A';
+  request.float32_value = 1.5f;
+  request.float64_value = 2.5;
+  request.int8_value = -8;
+  request.uint8_value = 8;
+  request.int16_value = -16;
+  request.uint16_value = 16;
+  request.int32_value = -32;
+  request.uint32_value = 32;
+  request.int64_value = -64;
+  request.uint64_value = 64;
+  request.string_value = "test string";
+
+  // Serialize
+  rclcpp::Serialization<test_msgs::srv::BasicTypes::Request> serializer;
+  rclcpp::SerializedMessage serialized_msg;
+  serializer.serialize_message(&request, &serialized_msg);
+
+  // Convert SerializedMessage to JSON
+  nlohmann::json json;
+  ASSERT_TRUE(converter.to_json("test_msgs/srv/BasicTypes::Request", serialized_msg, json));
+  EXPECT_EQ(json["bool_value"], true);
+  EXPECT_EQ(json["byte_value"], 123);
+  EXPECT_EQ(json["char_value"], 'A');
+  EXPECT_FLOAT_EQ(json["float32_value"], 1.5f);
+  EXPECT_DOUBLE_EQ(json["float64_value"], 2.5);
+  EXPECT_EQ(json["int8_value"], -8);
+  EXPECT_EQ(json["uint8_value"], 8);
+  EXPECT_EQ(json["int16_value"], -16);
+  EXPECT_EQ(json["uint16_value"], 16);
+  EXPECT_EQ(json["int32_value"], -32);
+  EXPECT_EQ(json["uint32_value"], 32);
+  EXPECT_EQ(json["int64_value"], -64);
+  EXPECT_EQ(json["uint64_value"], 64);
+  EXPECT_EQ(json["string_value"], "test string");
+
+  // Convert JSON back to SerializedMessage
+  rclcpp::SerializedMessage result_serialized;
+  ASSERT_TRUE(converter.to_msg("test_msgs/srv/BasicTypes::Request", json, result_serialized));
+
+  // Deserialize to verify
+  test_msgs::srv::BasicTypes::Request result;
+  serializer.deserialize_message(&result_serialized, &result);
+  EXPECT_EQ(result.bool_value, request.bool_value);
+  EXPECT_EQ(result.byte_value, request.byte_value);
+  EXPECT_EQ(result.char_value, request.char_value);
+  EXPECT_FLOAT_EQ(result.float32_value, request.float32_value);
+  EXPECT_DOUBLE_EQ(result.float64_value, request.float64_value);
+  EXPECT_EQ(result.string_value, request.string_value);
+}
+
+TEST(ConverterTest, ServiceResponseBasicTypes)
+{
+  Converter converter;
+
+  // Create service response
+  test_msgs::srv::BasicTypes::Response response;
+  response.bool_value = false;
+  response.byte_value = 255;
+  response.char_value = 'Z';
+  response.float32_value = 3.14f;
+  response.float64_value = 2.718;
+  response.int8_value = -100;
+  response.uint8_value = 200;
+  response.int16_value = -1000;
+  response.uint16_value = 2000;
+  response.int32_value = -100000;
+  response.uint32_value = 200000;
+  response.int64_value = -9876543210;
+  response.uint64_value = 9876543210;
+  response.string_value = "response data";
+
+  // Serialize
+  rclcpp::Serialization<test_msgs::srv::BasicTypes::Response> serializer;
+  rclcpp::SerializedMessage serialized_msg;
+  serializer.serialize_message(&response, &serialized_msg);
+
+  // Convert SerializedMessage to JSON
+  nlohmann::json json;
+  ASSERT_TRUE(converter.to_json("test_msgs/srv/BasicTypes::Response", serialized_msg, json));
+  EXPECT_EQ(json["bool_value"], false);
+  EXPECT_EQ(json["byte_value"], 255);
+  EXPECT_EQ(json["char_value"], 'Z');
+  EXPECT_FLOAT_EQ(json["float32_value"], 3.14f);
+  EXPECT_DOUBLE_EQ(json["float64_value"], 2.718);
+  EXPECT_EQ(json["string_value"], "response data");
+
+  // Convert JSON back to SerializedMessage
+  rclcpp::SerializedMessage result_serialized;
+  ASSERT_TRUE(converter.to_msg("test_msgs/srv/BasicTypes::Response", json, result_serialized));
+
+  // Deserialize to verify
+  test_msgs::srv::BasicTypes::Response result;
+  serializer.deserialize_message(&result_serialized, &result);
+  EXPECT_EQ(result.bool_value, response.bool_value);
+  EXPECT_EQ(result.byte_value, response.byte_value);
+  EXPECT_EQ(result.char_value, response.char_value);
+  EXPECT_FLOAT_EQ(result.float32_value, response.float32_value);
+  EXPECT_DOUBLE_EQ(result.float64_value, response.float64_value);
+  EXPECT_EQ(result.string_value, response.string_value);
+}
+
+TEST(ConverterTest, ServiceRequestEmpty)
+{
+  Converter converter;
+
+  // Create empty service request
+  test_msgs::srv::Empty::Request request;
+
+  // Serialize
+  rclcpp::Serialization<test_msgs::srv::Empty::Request> serializer;
+  rclcpp::SerializedMessage serialized_msg;
+  serializer.serialize_message(&request, &serialized_msg);
+
+  // Convert SerializedMessage to JSON
+  nlohmann::json json;
+  ASSERT_TRUE(converter.to_json("test_msgs/srv/Empty::Request", serialized_msg, json));
+  // Empty message should produce empty JSON object
+  EXPECT_TRUE(json.is_object());
+
+  // Convert JSON back to SerializedMessage
+  rclcpp::SerializedMessage result_serialized;
+  ASSERT_TRUE(converter.to_msg("test_msgs/srv/Empty::Request", json, result_serialized));
+
+  // Deserialize to verify (should not throw)
+  test_msgs::srv::Empty::Request result;
+  EXPECT_NO_THROW(serializer.deserialize_message(&result_serialized, &result));
+}
+
+TEST(ConverterTest, ServiceResponseEmpty)
+{
+  Converter converter;
+
+  // Create empty service response
+  test_msgs::srv::Empty::Response response;
+
+  // Serialize
+  rclcpp::Serialization<test_msgs::srv::Empty::Response> serializer;
+  rclcpp::SerializedMessage serialized_msg;
+  serializer.serialize_message(&response, &serialized_msg);
+
+  // Convert SerializedMessage to JSON
+  nlohmann::json json;
+  ASSERT_TRUE(converter.to_json("test_msgs/srv/Empty::Response", serialized_msg, json));
+  // Empty message should produce empty JSON object
+  EXPECT_TRUE(json.is_object());
+
+  // Convert JSON back to SerializedMessage
+  rclcpp::SerializedMessage result_serialized;
+  ASSERT_TRUE(converter.to_msg("test_msgs/srv/Empty::Response", json, result_serialized));
+
+  // Deserialize to verify (should not throw)
+  test_msgs::srv::Empty::Response result;
+  EXPECT_NO_THROW(serializer.deserialize_message(&result_serialized, &result));
+}
+
+TEST(ConverterTest, CacheTest)
+{
+  Converter converter;
+
+  // First call - loads type info via dlopen
+  std_msgs::msg::String msg1;
+  msg1.data = "first call";
+  rclcpp::Serialization<std_msgs::msg::String> serializer;
+  rclcpp::SerializedMessage serialized_msg1;
+  serializer.serialize_message(&msg1, &serialized_msg1);
+
+  nlohmann::json json1;
+  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg1, json1));
+  EXPECT_EQ(json1["data"], "first call");
+
+  // Second call - should use cached type info (no dlopen)
+  std_msgs::msg::String msg2;
+  msg2.data = "second call";
+  rclcpp::SerializedMessage serialized_msg2;
+  serializer.serialize_message(&msg2, &serialized_msg2);
+
+  nlohmann::json json2;
+  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg2, json2));
+  EXPECT_EQ(json2["data"], "second call");
+
+  // Third call - different data, same type (cache hit)
+  std_msgs::msg::String msg3;
+  msg3.data = "third call";
+  rclcpp::SerializedMessage serialized_msg3;
+  serializer.serialize_message(&msg3, &serialized_msg3);
+
+  nlohmann::json json3;
+  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg3, json3));
+  EXPECT_EQ(json3["data"], "third call");
+}
+
+TEST(ConverterTest, TestMsgsBasicTypes)
+{
+  Converter converter;
+
+  test_msgs::msg::BasicTypes msg;
+  msg.bool_value = true;
+  msg.byte_value = 123;
+  msg.char_value = 'A';
+  msg.float32_value = 3.14f;
+  msg.float64_value = 2.718;
+  msg.int8_value = -42;
+  msg.uint8_value = 200;
+  msg.int16_value = -1000;
+  msg.uint16_value = 50000;
+  msg.int32_value = -123456;
+  msg.uint32_value = 987654;
+  msg.int64_value = -9876543210;
+  msg.uint64_value = 1234567890123;
+
+  nlohmann::json json;
+  ASSERT_TRUE(converter.to_json(msg, json));
+
+  EXPECT_EQ(json["bool_value"], true);
+  EXPECT_EQ(json["byte_value"], 123);
+  EXPECT_EQ(json["char_value"], 'A');
+  EXPECT_FLOAT_EQ(json["float32_value"], 3.14f);
+  EXPECT_DOUBLE_EQ(json["float64_value"], 2.718);
+  EXPECT_EQ(json["int8_value"], -42);
+  EXPECT_EQ(json["uint8_value"], 200);
+  EXPECT_EQ(json["int16_value"], -1000);
+  EXPECT_EQ(json["uint16_value"], 50000);
+  EXPECT_EQ(json["int32_value"], -123456);
+  EXPECT_EQ(json["uint32_value"], 987654);
+  EXPECT_EQ(json["int64_value"], -9876543210);
+  EXPECT_EQ(json["uint64_value"], 1234567890123);
+
+  // Convert back
+  test_msgs::msg::BasicTypes result;
+  ASSERT_TRUE(converter.to_msg(json, result));
+
+  EXPECT_EQ(result.bool_value, msg.bool_value);
+  EXPECT_EQ(result.byte_value, msg.byte_value);
+  EXPECT_EQ(result.char_value, msg.char_value);
+  EXPECT_FLOAT_EQ(result.float32_value, msg.float32_value);
+  EXPECT_DOUBLE_EQ(result.float64_value, msg.float64_value);
+  EXPECT_EQ(result.int8_value, msg.int8_value);
+  EXPECT_EQ(result.uint8_value, msg.uint8_value);
+}
+
+TEST(ConverterTest, TestMsgsArrays)
+{
+  Converter converter;
+
+  test_msgs::msg::Arrays msg;
+  msg.bool_values = {true, false, true};
+  msg.byte_values = {0, 127, 255};
+  msg.char_values = {65, 66, 67};  // A, B, C
+  msg.float32_values = {1.1f, 2.2f, 3.3f};
+  msg.float64_values = {1.111, 2.222, 3.333};
+  msg.int8_values = {-1, 0, 1};
+  msg.uint8_values = {0, 100, 255};
+  msg.int16_values = {-100, 0, 100};
+  msg.uint16_values = {0, 1000, 50000};
+  msg.int32_values = {-1000000, 0, 1000000};
+  msg.uint32_values = {0, 500000, 4000000};
+  msg.int64_values = {-9999999999, 0, 9999999999};
+  msg.uint64_values = {0, 123456789, 987654321};
+  msg.string_values = {"hello", "world", "test"};
+
+  nlohmann::json json;
+  ASSERT_TRUE(converter.to_json(msg, json));
+
+  ASSERT_TRUE(json["bool_values"].is_array());
+  EXPECT_EQ(json["bool_values"].size(), 3);
+  EXPECT_EQ(json["bool_values"][0], true);
+  EXPECT_EQ(json["bool_values"][1], false);
+  EXPECT_EQ(json["bool_values"][2], true);
+
+  ASSERT_TRUE(json["byte_values"].is_array());
+  EXPECT_EQ(json["byte_values"][0], 0);
+  EXPECT_EQ(json["byte_values"][1], 127);
+  EXPECT_EQ(json["byte_values"][2], 255);
+
+  ASSERT_TRUE(json["string_values"].is_array());
+  EXPECT_EQ(json["string_values"][0], "hello");
+  EXPECT_EQ(json["string_values"][1], "world");
+  EXPECT_EQ(json["string_values"][2], "test");
+
+  // Convert back
+  test_msgs::msg::Arrays result;
+  ASSERT_TRUE(converter.to_msg(json, result));
+
+  ASSERT_EQ(result.bool_values.size(), 3);
+  EXPECT_EQ(result.bool_values[0], true);
+  EXPECT_EQ(result.bool_values[1], false);
+
+  ASSERT_EQ(result.string_values.size(), 3);
+  EXPECT_EQ(result.string_values[0], "hello");
+  EXPECT_EQ(result.string_values[2], "test");
 }
 
 int main(int argc, char ** argv)

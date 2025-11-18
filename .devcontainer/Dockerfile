@@ -27,6 +27,8 @@ RUN apt-get update && apt-get install -y \
     python3-vcstool \
     ros-${ROS_DISTRO}-ament-clang-format \
     ros-${ROS_DISTRO}-ament-clang-tidy \
+    # Test packages
+    ros-${ROS_DISTRO}-test-msgs \
     # Libraries
     nlohmann-json3-dev \
     # Debugging tools
