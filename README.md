@@ -1,6 +1,6 @@
 # json_converter
 
-ROS2 message to JSON converter library using typesupport introspection.
+Bidirectional converter between ROS2 messages and JSON using typesupport introspection.
 
 This library uses [RapidJSON](https://rapidjson.org/) for fast and efficient JSON processing.
 
@@ -33,12 +33,35 @@ if (converter.to_json(msg, doc, allocator)) {
 
 // JSON to ROS2 message
 rapidjson::Document input;
-input.SetObject();
-input.AddMember("data", "world", input.GetAllocator());
+input.Parse(R"({"data": "world"})");
 
 std_msgs::msg::String output;
 if (converter.to_msg(input, output)) {
   std::cout << output.data << std::endl;
+}
+```
+
+### Using void pointers and type name (runtime type loading)
+
+```cpp
+// JSON to message object
+rapidjson::Document request_doc;
+request_doc.Parse(R"({"a": 5, "b": 3})");
+
+std::shared_ptr<void> request_msg;
+if (converter.to_msg("example_interfaces/srv/AddTwoInts::Request", request_doc, request_msg)) {
+  // Use request_msg with GenericClient
+}
+
+// Message object to JSON
+void* response_ptr = /* ... from GenericClient ... */;
+rapidjson::Document response_doc;
+response_doc.SetObject();
+auto& allocator = response_doc.GetAllocator();
+
+if (converter.to_json("example_interfaces/srv/AddTwoInts::Response", response_ptr,
+                      response_doc, allocator)) {
+  // Output: {"sum":8}
 }
 ```
 
@@ -55,7 +78,7 @@ json_converter_cpp::Converter converter;
 
 // SerializedMessage to JSON (dynamic type loading)
 rclcpp::SerializedMessage serialized_msg;
-// ... receive serialized_msg from topic, service, etc.
+// ... receive serialized_msg from topic, rosbag, etc.
 
 rapidjson::Document doc;
 doc.SetObject();
@@ -70,36 +93,11 @@ if (converter.to_json("std_msgs/msg/String", serialized_msg, doc, allocator)) {
 
 // JSON to SerializedMessage
 rapidjson::Document input;
-input.SetObject();
-input.AddMember("data", "world", input.GetAllocator());
+input.Parse(R"({"data": "world"})");
 
 rclcpp::SerializedMessage output;
 if (converter.to_msg("std_msgs/msg/String", input, output)) {
   // ... publish or use serialized output
-}
-```
-
-### Using service types (with GenericClient)
-
-```cpp
-// JSON to message object (for service request)
-rapidjson::Document request_doc;
-request_doc.Parse(R"({"a": 5, "b": 3})");
-
-std::shared_ptr<void> request_msg;
-if (converter.to_msg("example_interfaces/srv/AddTwoInts::Request", request_doc, request_msg)) {
-  // Use request_msg with GenericClient
-}
-
-// Message object to JSON (for service response)
-void* response_ptr = /* ... from GenericClient ... */;
-rapidjson::Document response_doc;
-response_doc.SetObject();
-auto& allocator = response_doc.GetAllocator();
-
-if (converter.to_json("example_interfaces/srv/AddTwoInts::Response", response_ptr,
-                      response_doc, allocator)) {
-  // Output: {"sum":8}
 }
 ```
 
@@ -144,6 +142,18 @@ This will call the service with the given request and output the response as JSO
 ```
 
 ## How to build and test
+
+### Native build
+
+```bash
+# Build the package
+colcon build
+
+# Run tests
+colcon test
+```
+
+### Using Docker
 
 ```bash
 # Build the Docker container
