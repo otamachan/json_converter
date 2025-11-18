@@ -29,12 +29,13 @@ public:
   TopicEcho(const std::string & topic_name, const std::string & type_name)
   : Node("topic_echo")
   {
-    auto callback = [this, type_name](std::shared_ptr<rclcpp::SerializedMessage> msg) {
+    auto callback = [this, type_name](
+      std::shared_ptr<rclcpp::SerializedMessage> msg) {  // NOLINT
         nlohmann::json json;
         if (converter_.to_json(type_name, *msg, json)) {
-          std::cout << json.dump() << std::endl;
+          std::cout << json.dump() << '\n';
         } else {
-          std::cerr << "Failed to convert message to JSON" << std::endl;
+          std::cerr << "Failed to convert message to JSON\n";
         }
       };
 
@@ -49,9 +50,9 @@ public:
     // Wait for topic to appear (up to 2 seconds)
     for (int i = 0; i < 20; ++i) {
       auto topics_and_types = temp_node->get_topic_names_and_types();
-      auto it = topics_and_types.find(topic_name);
-      if (it != topics_and_types.end() && !it->second.empty()) {
-        return it->second[0];
+      auto topic_it = topics_and_types.find(topic_name);
+      if (topic_it != topics_and_types.end() && !topic_it->second.empty()) {
+        return topic_it->second[0];
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
@@ -122,9 +123,9 @@ void print_usage()
   std::cout << "Examples:\n";
   std::cout << "  topic echo /cmd_vel\n";
   std::cout << "  topic echo /cmd_vel geometry_msgs/msg/Twist\n";
-  std::cout << "  topic pub /cmd_vel geometry_msgs/msg/Twist "
-            << "'{\"linear\":{\"x\":1.0,\"y\":0.0,\"z\":0.0},"
-            << "\"angular\":{\"x\":0.0,\"y\":0.0,\"z\":0.0}}'\n";
+  std::cout << R"(  topic pub /cmd_vel geometry_msgs/msg/Twist )"
+            << R"('{"linear":{"x":1.0,"y":0.0,"z":0.0},)"
+            << R"("angular":{"x":0.0,"y":0.0,"z":0.0}}')" << '\n';
 }
 
 int main(int argc, char ** argv)
@@ -158,7 +159,7 @@ int main(int argc, char ** argv)
                   << "'. Make sure the topic exists or specify the type explicitly.\n";
         return 1;
       }
-      std::cout << "Detected topic type: " << type_name << std::endl;
+      std::cout << "Detected topic type: " << type_name << '\n';
     }
 
     auto node = std::make_shared<TopicEcho>(topic_name, type_name);

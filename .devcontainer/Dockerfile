@@ -29,6 +29,8 @@ RUN apt-get update && apt-get install -y \
     ros-${ROS_DISTRO}-ament-clang-tidy \
     # Test packages
     ros-${ROS_DISTRO}-test-msgs \
+    ros-${ROS_DISTRO}-example-interfaces \
+    ros-${ROS_DISTRO}-examples-rclcpp-minimal-service \
     # Libraries
     nlohmann-json3-dev \
     # Debugging tools

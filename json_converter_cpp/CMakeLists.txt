@@ -50,7 +50,11 @@ add_executable(topic example/topic.cpp)
 target_link_libraries(topic ${PROJECT_NAME})
 ament_target_dependencies(topic rclcpp)
 
-install(TARGETS topic
+add_executable(service example/service.cpp)
+target_link_libraries(service ${PROJECT_NAME})
+ament_target_dependencies(service rclcpp)
+
+install(TARGETS topic service
   DESTINATION lib/${PROJECT_NAME}
 )
 

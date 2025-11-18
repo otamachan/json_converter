@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 
@@ -31,6 +32,10 @@ class Converter
 {
 public:
   Converter() = default;
+  Converter(const Converter &) = delete;
+  Converter(Converter &&) = delete;
+  Converter & operator=(const Converter &) = delete;
+  Converter & operator=(Converter &&) = delete;
   virtual ~Converter() = default;
 
   /**
@@ -75,6 +80,27 @@ public:
     const std::string & type_name, const nlohmann::json & json,
     rclcpp::SerializedMessage & serialized_msg);
 
+  /**
+   * @brief Convert JSON to a message object (for GenericClient)
+   * @param type_name Full type name (e.g., "std_msgs/msg/String")
+   * @param json Input JSON object
+   * @param message_ptr Shared pointer to message object (allocated and set by this function)
+   * @return true if conversion succeeded, false otherwise
+   */
+  bool to_msg(
+    const std::string & type_name, const nlohmann::json & json,
+    std::shared_ptr<void> & message_ptr);
+
+  /**
+   * @brief Convert a message object to JSON (for GenericClient)
+   * @param type_name Full type name (e.g., "std_msgs/msg/String")
+   * @param message_ptr Pointer to message object
+   * @param json Output JSON object
+   * @return true if conversion succeeded, false otherwise
+   */
+  bool to_json(
+    const std::string & type_name, const void * message_ptr, nlohmann::json & json);
+
 private:
   using MessageMembers = rosidl_typesupport_introspection_cpp::MessageMembers;
   using MessageMember = rosidl_typesupport_introspection_cpp::MessageMember;
@@ -115,14 +141,14 @@ bool Converter::to_json(const T & msg, nlohmann::json & json)
     return false;
   }
 
-  auto introspection_ts = get_message_typesupport_handle(
+  const auto * introspection_ts = get_message_typesupport_handle(
     type_support, rosidl_typesupport_introspection_cpp::typesupport_identifier);
 
   if (!introspection_ts) {
     return false;
   }
 
-  const MessageMembers * members = static_cast<const MessageMembers *>(introspection_ts->data);
+  const auto * members = static_cast<const MessageMembers *>(introspection_ts->data);
 
   return message_to_json(&msg, members, json);
 }
@@ -137,14 +163,14 @@ bool Converter::to_msg(const nlohmann::json & json, T & msg)
     return false;
   }
 
-  auto introspection_ts = get_message_typesupport_handle(
+  const auto * introspection_ts = get_message_typesupport_handle(
     type_support, rosidl_typesupport_introspection_cpp::typesupport_identifier);
 
   if (!introspection_ts) {
     return false;
   }
 
-  const MessageMembers * members = static_cast<const MessageMembers *>(introspection_ts->data);
+  const auto * members = static_cast<const MessageMembers *>(introspection_ts->data);
 
   return json_to_message(json, &msg, members);
 }

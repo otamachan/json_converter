@@ -69,9 +69,9 @@ if (converter.to_msg("test_msgs/srv/BasicTypes::Response", json, serialized_resp
 }
 ```
 
-## Example CLI tool
+## Example CLI tools
 
-The package includes a command-line tool for echoing and publishing topics with JSON.
+The package includes command-line tools for working with ROS2 topics and services using JSON.
 
 ### Echo topics as JSON
 
@@ -96,6 +96,18 @@ ros2 run json_converter_cpp topic pub /cmd_vel geometry_msgs/msg/Twist \
 ```
 
 This will wait for at least one subscriber, publish the message once, and exit.
+
+### Call services with JSON
+
+```bash
+ros2 run json_converter_cpp service call /add_two_ints example_interfaces/srv/AddTwoInts \
+  '{"a":5,"b":3}'
+```
+
+This will call the service with the given request and output the response as JSON:
+```json
+{"sum":8}
+```
 
 ## How to build and test
 

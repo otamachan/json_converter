@@ -16,6 +16,7 @@
 
 #include <dlfcn.h>
 
+#include <cstdlib>
 #include <cstring>
 #include <sstream>
 #include <utility>
@@ -315,9 +316,9 @@ const rosidl_message_type_support_t * Converter::load_type_support_cpp(
 Converter::TypeInfo Converter::load_type_info(const std::string & type_name)
 {
   // Check cache first
-  auto it = type_info_cache_.find(type_name);
-  if (it != type_info_cache_.end()) {
-    return it->second;
+  auto cache_it = type_info_cache_.find(type_name);
+  if (cache_it != type_info_cache_.end()) {
+    return cache_it->second;
   }
 
   // Parse "package_name/interface_type/message_type" or
@@ -442,6 +443,58 @@ bool Converter::to_msg(
   }
 
   return true;
+}
+
+bool Converter::to_msg(
+  const std::string & type_name, const nlohmann::json & json,
+  std::shared_ptr<void> & message_ptr)
+{
+  TypeInfo type_info = load_type_info(type_name);
+  if (type_info.members == nullptr) {
+    return false;
+  }
+
+  // Allocate message with custom deleter
+  void * raw_ptr = std::malloc(type_info.members->size_of_);  // NOLINT
+  if (raw_ptr == nullptr) {
+    return false;
+  }
+
+  message_ptr = std::shared_ptr<void>(
+    raw_ptr,
+    [type_info](void * ptr) {
+      if (type_info.members->fini_function != nullptr) {
+        type_info.members->fini_function(ptr);
+      }
+      std::free(ptr);  // NOLINT
+    });
+
+  // Initialize message
+  if (type_info.members->init_function != nullptr) {
+    type_info.members->init_function(
+      raw_ptr, rosidl_runtime_cpp::MessageInitialization::ZERO);
+  } else {
+    std::memset(raw_ptr, 0, type_info.members->size_of_);
+  }
+
+  // Convert JSON to message
+  if (!json_to_message(json, raw_ptr, type_info.members)) {
+    message_ptr.reset();
+    return false;
+  }
+
+  return true;
+}
+
+bool Converter::to_json(
+  const std::string & type_name, const void * message_ptr, nlohmann::json & json)
+{
+  TypeInfo type_info = load_type_info(type_name);
+  if (type_info.members == nullptr) {
+    return false;
+  }
+
+  return message_to_json(message_ptr, type_info.members, json);
 }
 
 }  // namespace json_converter_cpp
