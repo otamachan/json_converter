@@ -17,6 +17,7 @@
 #include <geometry_msgs/msg/point.hpp>
 #include <geometry_msgs/msg/polygon.hpp>
 #include <geometry_msgs/msg/pose.hpp>
+#include <rclcpp/serialization.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/int32_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
@@ -232,6 +233,74 @@ TEST(ConverterTest, ComplexRoundTrip)
     EXPECT_FLOAT_EQ(result.points[i].y, original.points[i].y);
     EXPECT_FLOAT_EQ(result.points[i].z, original.points[i].z);
   }
+}
+
+TEST(ConverterTest, SerializedMessageString)
+{
+  Converter converter;
+
+  // Create message
+  std_msgs::msg::String msg;
+  msg.data = "serialized message test";
+
+  // Serialize
+  rclcpp::Serialization<std_msgs::msg::String> serializer;
+  rclcpp::SerializedMessage serialized_msg;
+  serializer.serialize_message(&msg, &serialized_msg);
+
+  // Convert SerializedMessage to JSON
+  nlohmann::json json;
+  ASSERT_TRUE(converter.to_json("std_msgs/msg/String", serialized_msg, json));
+  EXPECT_EQ(json["data"], "serialized message test");
+
+  // Convert JSON back to SerializedMessage
+  rclcpp::SerializedMessage result_serialized;
+  ASSERT_TRUE(converter.to_msg("std_msgs/msg/String", json, result_serialized));
+
+  // Deserialize to verify
+  std_msgs::msg::String result;
+  serializer.deserialize_message(&result_serialized, &result);
+  EXPECT_EQ(result.data, msg.data);
+}
+
+TEST(ConverterTest, SerializedMessagePose)
+{
+  Converter converter;
+
+  // Create pose message
+  geometry_msgs::msg::Pose pose;
+  pose.position.x = 1.5;
+  pose.position.y = 2.5;
+  pose.position.z = 3.5;
+  pose.orientation.x = 0.0;
+  pose.orientation.y = 0.0;
+  pose.orientation.z = 0.0;
+  pose.orientation.w = 1.0;
+
+  // Serialize
+  rclcpp::Serialization<geometry_msgs::msg::Pose> serializer;
+  rclcpp::SerializedMessage serialized_msg;
+  serializer.serialize_message(&pose, &serialized_msg);
+
+  // Convert SerializedMessage to JSON
+  nlohmann::json json;
+  ASSERT_TRUE(converter.to_json("geometry_msgs/msg/Pose", serialized_msg, json));
+  EXPECT_FLOAT_EQ(json["position"]["x"], 1.5);
+  EXPECT_FLOAT_EQ(json["position"]["y"], 2.5);
+  EXPECT_FLOAT_EQ(json["position"]["z"], 3.5);
+  EXPECT_FLOAT_EQ(json["orientation"]["w"], 1.0);
+
+  // Convert JSON back to SerializedMessage
+  rclcpp::SerializedMessage result_serialized;
+  ASSERT_TRUE(converter.to_msg("geometry_msgs/msg/Pose", json, result_serialized));
+
+  // Deserialize to verify
+  geometry_msgs::msg::Pose result;
+  serializer.deserialize_message(&result_serialized, &result);
+  EXPECT_FLOAT_EQ(result.position.x, pose.position.x);
+  EXPECT_FLOAT_EQ(result.position.y, pose.position.y);
+  EXPECT_FLOAT_EQ(result.position.z, pose.position.z);
+  EXPECT_FLOAT_EQ(result.orientation.w, pose.orientation.w);
 }
 
 int main(int argc, char ** argv)

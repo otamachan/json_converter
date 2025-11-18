@@ -29,6 +29,7 @@ ament_target_dependencies(${PROJECT_NAME}
 
 target_link_libraries(${PROJECT_NAME}
   nlohmann_json::nlohmann_json
+  ${CMAKE_DL_LIBS}
 )
 
 # Install library

@@ -14,8 +14,23 @@
 
 #include "json_converter_cpp/converter.hpp"
 
+#include <dlfcn.h>
+
+#include <cstring>
+#include <sstream>
+
+#include <rclcpp/serialization.hpp>
+#include <rosidl_runtime_cpp/message_initialization.hpp>
+
 namespace json_converter_cpp
 {
+
+namespace
+{
+
+using GetMessageTypeSupportFunc = const rosidl_message_type_support_t * (*)();
+
+}  // namespace
 
 // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
 bool Converter::primitive_to_json(const void * data_ptr, uint8_t type_id, nlohmann::json & json)
@@ -67,7 +82,7 @@ bool Converter::primitive_to_json(const void * data_ptr, uint8_t type_id, nlohma
 bool Converter::message_to_json(
   const void * message_ptr, const MessageMembers * members, nlohmann::json & json)
 {
-  if (!message_ptr || !members) {
+  if (message_ptr == nullptr || members == nullptr) {
     return false;
   }
 
@@ -90,7 +105,7 @@ bool Converter::message_to_json(
         nlohmann::json element_json;
 
         if (member.type_id_ == rosidl_typesupport_introspection_cpp::ROS_TYPE_MESSAGE) {
-          const MessageMembers * nested_members =
+          auto const * nested_members =
             static_cast<const MessageMembers *>(member.members_->data);
           if (!message_to_json(element_ptr, nested_members, element_json)) {
             return false;
@@ -107,7 +122,7 @@ bool Converter::message_to_json(
     } else {
       if (member.type_id_ == rosidl_typesupport_introspection_cpp::ROS_TYPE_MESSAGE) {
         nlohmann::json nested_json;
-        const MessageMembers * nested_members =
+        auto const * nested_members =
           static_cast<const MessageMembers *>(member.members_->data);
         if (!message_to_json(member_ptr, nested_members, nested_json)) {
           return false;
@@ -180,7 +195,7 @@ bool Converter::json_to_primitive(const nlohmann::json & json, void * data_ptr, 
 bool Converter::json_to_message(
   const nlohmann::json & json, void * message_ptr, const MessageMembers * members)
 {
-  if (!message_ptr || !members) {
+  if (message_ptr == nullptr || members == nullptr) {
     return false;
   }
 
@@ -213,7 +228,7 @@ bool Converter::json_to_message(
         void * element_ptr = member.get_function(member_ptr, j);
 
         if (member.type_id_ == rosidl_typesupport_introspection_cpp::ROS_TYPE_MESSAGE) {
-          const MessageMembers * nested_members =
+          auto const * nested_members =
             static_cast<const MessageMembers *>(member.members_->data);
           if (!json_to_message(json_value[j], element_ptr, nested_members)) {
             return false;
@@ -226,7 +241,7 @@ bool Converter::json_to_message(
       }
     } else {
       if (member.type_id_ == rosidl_typesupport_introspection_cpp::ROS_TYPE_MESSAGE) {
-        const MessageMembers * nested_members =
+        auto const * nested_members =
           static_cast<const MessageMembers *>(member.members_->data);
         if (!json_to_message(json_value, member_ptr, nested_members)) {
           return false;
@@ -237,6 +252,164 @@ bool Converter::json_to_message(
         }
       }
     }
+  }
+
+  return true;
+}
+
+const rosidl_message_type_support_t * Converter::load_introspection_type_support(
+  const std::string & package_name, const std::string & type_name_with_prefix)
+{
+  std::stringstream lib_name;
+  lib_name << "lib" << package_name << "__rosidl_typesupport_introspection_cpp.so";
+
+  void * library = dlopen(lib_name.str().c_str(), RTLD_LAZY | RTLD_GLOBAL);
+  if (library == nullptr) {
+    return nullptr;
+  }
+
+  std::stringstream func_name;
+  func_name << "rosidl_typesupport_introspection_cpp__get_message_type_support_handle__"
+            << package_name << type_name_with_prefix;
+
+  // reinterpret_cast needed for dlsym return value
+  GetMessageTypeSupportFunc func =
+    reinterpret_cast<GetMessageTypeSupportFunc>(dlsym(library, func_name.str().c_str()));
+  if (func == nullptr) {
+    return nullptr;
+  }
+
+  return func();
+}
+
+const rosidl_message_type_support_t * Converter::load_type_support_cpp(
+  const std::string & package_name, const std::string & type_name_with_prefix)
+{
+  std::stringstream lib_name;
+  lib_name << "lib" << package_name << "__rosidl_typesupport_cpp.so";
+
+  void * library = dlopen(lib_name.str().c_str(), RTLD_LAZY | RTLD_GLOBAL);
+  if (library == nullptr) {
+    return nullptr;
+  }
+
+  std::stringstream func_name;
+  func_name << "rosidl_typesupport_cpp__get_message_type_support_handle__"
+            << package_name << type_name_with_prefix;
+
+  // reinterpret_cast needed for dlsym return value
+  GetMessageTypeSupportFunc func =
+    reinterpret_cast<GetMessageTypeSupportFunc>(dlsym(library, func_name.str().c_str()));
+  if (func == nullptr) {
+    return nullptr;
+  }
+
+  return func();
+}
+
+Converter::TypeInfo Converter::load_type_info(const std::string & type_name)
+{
+  // Parse "package_name/interface_type/message_type" format
+  size_t first_slash = type_name.find('/');
+  size_t second_slash = type_name.find('/', first_slash + 1);
+
+  if (first_slash == std::string::npos || second_slash == std::string::npos) {
+    return {nullptr, nullptr, nullptr};
+  }
+
+  std::string package_name = type_name.substr(0, first_slash);
+  std::string interface_type = type_name.substr(first_slash + 1, second_slash - first_slash - 1);
+  std::string message_type = type_name.substr(second_slash + 1);
+
+  std::string type_name_with_prefix = "__" + interface_type + "__" + message_type;
+
+  const rosidl_message_type_support_t * type_support =
+    load_type_support_cpp(package_name, type_name_with_prefix);
+  const rosidl_message_type_support_t * introspection_type_support =
+    load_introspection_type_support(package_name, type_name_with_prefix);
+
+  if (type_support == nullptr || introspection_type_support == nullptr) {
+    return {nullptr, nullptr, nullptr};
+  }
+
+  auto const * members =
+    static_cast<const MessageMembers *>(introspection_type_support->data);
+
+  return {type_support, introspection_type_support, members};
+}
+
+// SerializedMessage API
+bool Converter::to_json(
+  const std::string & type_name,
+  const rclcpp::SerializedMessage & serialized_msg,
+  nlohmann::json & json)
+{
+  TypeInfo type_info = load_type_info(type_name);
+  if (type_info.type_support == nullptr || type_info.members == nullptr) {
+    return false;
+  }
+
+  // Allocate memory for the C++ object
+  std::vector<uint8_t> object_data(type_info.members->size_of_);
+
+  // Initialize the object
+  if (type_info.members->init_function != nullptr) {
+    type_info.members->init_function(
+      object_data.data(), rosidl_runtime_cpp::MessageInitialization::ALL);
+  }
+
+  // Deserialize using rclcpp::SerializationBase
+  rclcpp::SerializationBase serializer(type_info.type_support);
+  serializer.deserialize_message(&serialized_msg, object_data.data());
+
+  // Convert to JSON
+  bool result = message_to_json(object_data.data(), type_info.members, json);
+
+  // Cleanup
+  if (type_info.members->fini_function != nullptr) {
+    type_info.members->fini_function(object_data.data());
+  }
+
+  return result;
+}
+
+bool Converter::to_msg(
+  const std::string & type_name,
+  const nlohmann::json & json,
+  rclcpp::SerializedMessage & serialized_msg)
+{
+  TypeInfo type_info = load_type_info(type_name);
+  if (type_info.type_support == nullptr || type_info.members == nullptr) {
+    return false;
+  }
+
+  // Allocate memory for the C++ object
+  std::vector<uint8_t> object_data(type_info.members->size_of_);
+
+  // Initialize the object
+  if (type_info.members->init_function != nullptr) {
+    type_info.members->init_function(
+      object_data.data(), rosidl_runtime_cpp::MessageInitialization::ALL);
+  }
+
+  // Convert from JSON
+  bool convert_result = json_to_message(json, object_data.data(), type_info.members);
+
+  if (!convert_result) {
+    // Cleanup on failure
+    if (type_info.members->fini_function != nullptr) {
+      type_info.members->fini_function(object_data.data());
+    }
+    return false;
+  }
+
+  // Serialize using rclcpp::SerializationBase
+  rclcpp::SerializationBase serializer(type_info.type_support);
+  serializer.serialize_message(object_data.data(), &serialized_msg);
+
+  // Cleanup
+  if (type_info.members->fini_function != nullptr) {
+    type_info.members->fini_function(object_data.data());
   }
 
   return true;
