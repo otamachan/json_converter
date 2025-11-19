@@ -14,6 +14,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Create workspace symlink
+      run: |
+        mkdir -p workspace/src
+        ln -s ../../json_converter_cpp workspace/src/
+
     - name: Build Docker image
       run: ./dev.sh build
 
