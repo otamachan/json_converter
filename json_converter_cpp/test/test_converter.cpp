@@ -24,6 +24,7 @@
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/int32_multi_array.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_srvs/srv/trigger.hpp>
 #include <test_msgs/msg/arrays.hpp>
 #include <test_msgs/msg/basic_types.hpp>
 #include <test_msgs/srv/basic_types.hpp>
@@ -678,6 +679,31 @@ TEST(ConverterTest, TestMsgsArrays)
   ASSERT_EQ(result.string_values.size(), 3);
   EXPECT_EQ(result.string_values[0], "hello");
   EXPECT_EQ(result.string_values[2], "test");
+}
+
+TEST(ConverterTest, TriggerServiceRequest)
+{
+  Converter converter;
+
+  // Empty JSON to Trigger request (using void pointer API)
+  // Trigger Request has no fields, but the structure still exists
+  rapidjson::Document request_doc;
+  request_doc.Parse("{}");
+
+  std::shared_ptr<void> request_msg;
+  ASSERT_TRUE(converter.to_msg("std_srvs/srv/Trigger::Request", request_doc, request_msg));
+  EXPECT_NE(request_msg, nullptr);
+
+  // Convert back to JSON
+  rapidjson::Document result_doc;
+  result_doc.SetObject();
+  auto & allocator = result_doc.GetAllocator();
+  ASSERT_TRUE(converter.to_json("std_srvs/srv/Trigger::Request", request_msg.get(),
+    result_doc, allocator));
+
+  // Trigger::Request is empty (structure_needs_at_least_one_member is skipped)
+  EXPECT_TRUE(result_doc.IsObject());
+  EXPECT_EQ(result_doc.MemberCount(), 0);
 }
 
 int main(int argc, char ** argv)

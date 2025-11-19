@@ -101,6 +101,12 @@ bool Converter::message_to_json(
 
   for (size_t i = 0; i < members->member_count_; ++i) {
     const MessageMember & member = members->members_[i];
+
+    // Skip dummy member used for empty structures
+    if (std::strcmp(member.name_, "structure_needs_at_least_one_member") == 0) {
+      continue;
+    }
+
     const uint8_t * member_ptr = static_cast<const uint8_t *>(message_ptr) + member.offset_;
 
     if (member.is_array_) {
