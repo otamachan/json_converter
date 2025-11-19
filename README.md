@@ -146,7 +146,15 @@ This will call the service with the given request and output the response as JSO
 ### Native build
 
 ```bash
+# Source ROS2 environment
+source /opt/ros/jazzy/setup.bash
+
+# Create workspace directory and symlink
+mkdir -p workspace/src
+ln -s ../../json_converter_cpp workspace/src/
+
 # Build the package
+cd workspace
 colcon build
 
 # Run tests
@@ -156,6 +164,10 @@ colcon test
 ### Using Docker
 
 ```bash
+# Create workspace directory and symlink
+mkdir -p workspace/src
+ln -s ../../json_converter_cpp workspace/src/
+
 # Build the Docker container
 ./dev.sh build
 
