@@ -1,7 +1,7 @@
 services:
   ros2-dev:
     build:
-      context: .devcontainer
+      context: .
       dockerfile: Dockerfile
       args:
         ROS_DISTRO: jazzy
